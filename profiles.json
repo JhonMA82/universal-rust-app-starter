@@ -1,0 +1,86 @@
+{
+  "library": {
+    "desc": "Library crate with public API and doctests",
+    "skills": [
+      "rust-semver"
+    ],
+    "kind": "native"
+  },
+  "cli": {
+    "desc": "Clap CLI with testable command logic",
+    "skills": [
+      "rust-cli"
+    ],
+    "kind": "native"
+  },
+  "desktop-egui": {
+    "desc": "Native egui/eframe application",
+    "skills": [
+      "egui-visual-validation"
+    ],
+    "kind": "native"
+  },
+  "desktop-egui-web": {
+    "desc": "Shared egui UI for native desktop and WASM/Trunk",
+    "skills": [
+      "egui-visual-validation",
+      "wasm-compatibility"
+    ],
+    "kind": "egui-wasm"
+  },
+  "service-axum": {
+    "desc": "Tokio + Axum HTTP API with /health",
+    "skills": [
+      "async-rust",
+      "rust-web-security"
+    ],
+    "kind": "native"
+  },
+  "mcp-stdio": {
+    "desc": "rmcp stdio server with an echo tool",
+    "skills": [
+      "async-rust",
+      "mcp-protocol-validation"
+    ],
+    "kind": "native"
+  },
+  "mcp-http": {
+    "desc": "rmcp Streamable HTTP server on localhost",
+    "skills": [
+      "async-rust",
+      "rust-web-security",
+      "mcp-protocol-validation"
+    ],
+    "kind": "native"
+  },
+  "mcp-client": {
+    "desc": "rmcp Streamable HTTP client",
+    "skills": [
+      "async-rust",
+      "mcp-protocol-validation"
+    ],
+    "kind": "native"
+  },
+  "web-leptos-csr": {
+    "desc": "Leptos client-side WASM app with Trunk",
+    "skills": [
+      "wasm-compatibility"
+    ],
+    "kind": "wasm"
+  },
+  "web-leptos-fullstack": {
+    "desc": "Leptos server-rendered UI on Axum (SSR baseline)",
+    "skills": [
+      "async-rust",
+      "rust-web-security"
+    ],
+    "kind": "native"
+  },
+  "web-dioxus": {
+    "desc": "Dioxus web UI, run with dx",
+    "skills": [
+      "wasm-compatibility"
+    ],
+    "kind": "wasm"
+  }
+}

@@ -1,0 +1,3 @@
+[application]
+name = "{{project-name}}"
+default_platform = "web"

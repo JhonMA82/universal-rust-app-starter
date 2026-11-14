@@ -1,0 +1,12 @@
+[package]
+name = "{{project-name}}"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "A generated Rust application"
+
+[dependencies]
+axum = "0.8"
+leptos = { version = "0.8", default-features = false, features = ["ssr"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal"] }
+anyhow = "1"
