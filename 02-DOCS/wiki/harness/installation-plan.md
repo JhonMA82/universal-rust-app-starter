@@ -1,6 +1,6 @@
 # Accepted harness plan
 
-Plan id: `0d1b7c09d17a28462ed392a3b0a26172ff6bf29dba19c6b2c1b4d4f5fc79e6d0`
+Plan id: `1582776131248040c0108dcf8e12a7ff0e3087fcd725adef8bae3c48e92c2d98`
 
 | Kind | Component | Decision | Reason | Reevaluate when |
 | --- | --- | --- | --- | --- |
@@ -18,7 +18,7 @@ Plan id: `0d1b7c09d17a28462ed392a3b0a26172ff6bf29dba19c6b2c1b4d4f5fc79e6d0`
 | integration | context7 | excluded | External MCP connections require a separate, provider-specific consent flow and are outside this local harness plan. | — |
 | route | harness-documents | selected | The accepted profile and plan are persisted under 02-DOCS/wiki/harness/. | — |
 | skill | analyze | selected | Included in the development workflow for growing software. | — |
-| skill | asdd | selected | Included in the development workflow for growing software. | — |
+| skill | asdd | selected | Included because the accepted work has authentication complexity. | — |
 | skill | automation-strategy | selected | Included in the development workflow for growing software. | — |
 | skill | clarify | selected | Included in the development workflow for growing software. | — |
 | skill | connect-tool | selected | Included in the development workflow for growing software. | — |
