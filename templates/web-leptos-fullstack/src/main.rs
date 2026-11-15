@@ -2,11 +2,10 @@ use axum::{Router, response::Html, routing::get};
 use leptos::prelude::*;
 
 async fn index() -> Html<String> {
-    let html = leptos::ssr::render_to_string(|| {
-        view! {
-            <main><h1>"{{project-name}}"</h1><p>"Rendered on the Rust server"</p></main>
-        }
-    });
+    let html = view! {
+        <main><h1>"{{project-name}}"</h1><p>"Rendered on the Rust server"</p></main>
+    }
+    .to_html();
     Html(format!(
         concat!(
             "<!doctype html><html lang=\"en\"><head>",

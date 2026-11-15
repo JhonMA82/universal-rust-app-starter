@@ -7,6 +7,7 @@ description = "A generated Rust application"
 
 [dependencies]
 rmcp = { version = "3.10", features = ["server", "transport-io"] }
+schemars = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
 serde = { version = "1", features = ["derive"] }
 anyhow = "1"

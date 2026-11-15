@@ -1,4 +1,4 @@
-use rmcp::{ClientServiceExt, model::ClientConfig, transport::StreamableHttpClientTransport};
+use rmcp::{ServiceExt, model::ClientConfig, transport::StreamableHttpClientTransport};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
