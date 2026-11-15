@@ -15,7 +15,7 @@ python3 tools/verify_templates.py --generate --cargo-check
 ## Rules
 - `templates/<profile>/` is a separate cargo-generate template. Do not introduce dependencies between generated projects and this repository.
 - Maintain AGENTS.md as the single project contract; Claude and Gemini adapters point to it.
-- `.agents/skills` and `.claude/skills` must be byte-identical per skill; run verification after edits.
+- `.agents/skills` is canonical; `.claude/skills` must be a relative symlink to `../.agents/skills`; run verification after edits.
 - Keep each profile compilable without credentials. No deployed services or auto-publish.
 - Avoid copying from noncommercial source code. Record third-party sources/attributions.
 - Validate Liquid placeholders, Cargo files, scripts, license policy, and required docs.

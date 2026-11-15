@@ -46,12 +46,19 @@ Five profiles failed compilation before these fixes and now pass: `mcp-stdio` an
 
 ## Addendum — Egui Visual Forge integration (2026-11-14)
 
-- Installed the five MIT `egui-*` reconstruction skills in the `desktop-egui` `.agents/skills` and `.claude/skills` mirrors; `scripts/check_agents.py` reports **14 validated skills; mirrors match**.
+- Installed the five MIT `egui-*` reconstruction skills in canonical `desktop-egui` `.agents/skills`, exposed through the `.claude/skills` symlink; `scripts/check_agents.py` reports **14 validated skills**.
 - Vendored the forge Python tools, scene-format docs, `requirements.txt`, a standalone eframe 0.37 example and `tests/test_tools.py`.
 - `python3 tools/validate_toolkit.py`: **PASS**. `python3 -m unittest discover -s tests -v`: **13/13 PASS** (Pillow/NumPy/PyYAML venv).
 - Generated `desktop-egui` with cargo-generate 0.26.0, then `cargo fmt --all -- --check`, `cargo check --workspace --all-targets`, `cargo test --workspace` (1 passed) and `cargo clippy --workspace --all-targets -- -D warnings`: **PASS** with Rust 1.100.0.
 - `examples/eframe-starter` (standalone eframe/egui/egui_kittest 0.37.0): `cargo check --all-targets` **PASS**; `cargo test` **1 passed**.
 - Not performed: real display-server captures or pixel-fidelity claims against a user reference. The profile pins eframe/egui **0.36** while the bundled example targets **0.37**; this mismatch is documented in the generated `AGENTS.md`.
+
+## Addendum — Claude skills symlink (2026-11-14)
+
+- Replaced the duplicated `.claude/skills` trees in all 11 templates with relative symlinks to canonical `.agents/skills`.
+- `python3 tools/verify_templates.py --generate` generated all 11 profiles and ran each generated `scripts/check_agents.py`; every project recreated the symlink and passed.
+- Guard tests cover a replaced symlink, a wrong target, the marked copy fallback, and recreation of a missing link.
+- cargo-generate 0.26 prints `[Skipping] Symbolic links not supported` during generation; the generated checker recreates the link. Platforms without symlink support get a marked copy fallback.
 
 ## How to finish the remaining checks
 

@@ -55,8 +55,8 @@ Use `public` as the second argument if you want the template to be publicly acce
 - Canonical `AGENTS.md` with profile-accurate checks and explicit delivery criteria.
 - `CLAUDE.md` and `GEMINI.md` as minimal adapters.
 - Eight original curated Rust skills, and specialized skills depending on the selected profile.
-- Identical `.agents/skills` and `.claude/skills` content; mirrored for cross-client discovery.
-- `python3 scripts/check_agents.py` checks canonical documents, skill frontmatter and mirror drift offline.
+- Canonical skills in `.agents/skills`; `.claude/skills` is a relative symlink for cross-client discovery.
+- `python3 scripts/check_agents.py` checks canonical documents, skill frontmatter and the Claude symlink offline; it recreates the link after cargo-generate when needed.
 - No hooks install agents, connect accounts, send data or grant permissions automatically.
 
 Skills are written specifically for this starter, with design references to BSD-3-Clause `rewrite-rs/skills`, Apache-2.0 `full-stack-skills/rust-skills`, and Agent Skills specification. No noncommercial code is included. See `docs/SOURCES.md`.

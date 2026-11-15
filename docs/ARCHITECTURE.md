@@ -15,7 +15,7 @@ The web/fullstack profile is **SSR-only** in v1. It does not promise hydration/a
 
 ## Agent-first behavior
 
-Every generated app receives eight general skills plus profile skills. Canonical content: `.agents/skills`, mirrored at `.claude/skills`, no symlink dependencies. Run `scripts/check_agents.py`; it fails if mirrors drift. Provider adapters stay thin and never silently execute operations.
+Every generated app receives eight general skills plus profile skills. Canonical content: `.agents/skills`; `.claude/skills` is a relative symlink to it. cargo-generate skips symlinks, so `scripts/check_agents.py` recreates the link after generation (with a copy fallback only where symlinks are unavailable) and fails on wrong targets. Provider adapters stay thin and never silently execute operations.
 
 ## Why no defaults for databases/auth/distribution
 

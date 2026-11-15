@@ -66,18 +66,23 @@ def check_templates() -> list[str]:
         src = base / ".agents" / "skills"
         mirror = base / ".claude" / "skills"
         skills = sorted(x.parent.name for x in src.glob("*/SKILL.md"))
-        mirrored = sorted(x.parent.name for x in mirror.glob("*/SKILL.md"))
+        mirrored = sorted(x.parent.name for x in mirror.glob("*/SKILL.md")) if mirror.exists() else []
         expected = sorted(["idiomatic-rust", "ownership-not-clone", "rust-errors", "rust-api-design",
                            "rust-testing", "rust-code-review", "rust-supply-chain", "rust-docs"] + meta["skills"])
         if skills != expected:
             errors.append(f"{name}: skills do not match profile expectations")
+        if not mirror.is_symlink():
+            errors.append(f"{name}: .claude/skills must be a symlink")
+        else:
+            target = Path(os.readlink(mirror))
+            if target != Path("..") / ".agents" / "skills":
+                errors.append(f"{name}: .claude/skills points to {target}")
+            if mirror.resolve() != src.resolve():
+                errors.append(f"{name}: .claude/skills does not resolve to .agents/skills")
         if skills != mirrored:
-            errors.append(f"{name}: skills mirror is incomplete")
+            errors.append(f"{name}: Claude skills are incomplete")
         for skill in skills:
             a = src / skill / "SKILL.md"
-            b = mirror / skill / "SKILL.md"
-            if a.read_bytes() != b.read_bytes():
-                errors.append(f"{name}: skill mirror mismatch {skill}")
             text = a.read_text(encoding="utf-8")
             front = re.match(r"^---\n(.*?)\n---\n", text, re.S)
             if not front or not all(re.search(fr"^{field}:\s*\S+", front.group(1), re.M) for field in SKILL_FIELDS):

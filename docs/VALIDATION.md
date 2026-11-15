@@ -4,6 +4,8 @@ Static audits prove TOML structure, placeholders, instruction completeness and f
 
 The `desktop-egui` profile additionally carries the Egui Visual Forge Python toolkit (13 tests) and a standalone eframe 0.37 example; both were validated separately. This does not constitute a pixel-fidelity claim for any real screenshot.
 
+All templates expose canonical `.agents/skills` through a relative `.claude/skills` symlink. cargo-generate skips symlinks, so generated projects recreate the link on the first `scripts/check_agents.py` run; all 11 profiles were generated and checked.
+
 ## Integration pass status
 
 1. ~~Install current Rust stable, supported native GUI dependencies, cargo-generate, trunk, and Dioxus CLI where applicable.~~ Done for Rust stable and cargo-generate; `trunk`/`dx` were not needed for the compile pass.
