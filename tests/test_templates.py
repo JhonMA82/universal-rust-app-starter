@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('verify_templates',ROOT/'tools/verify_templates.py')
@@ -30,6 +31,28 @@ class StarterTests(unittest.TestCase):
         self.assertGreater(len(text),10000)
         for profile in mod.PROFILES:
             self.assertEqual((ROOT/'templates'/profile/'LICENSE-APACHE').read_text(),text)
+
+    def test_generate_passes_existing_parent_destination(self):
+        # cargo-generate 0.26 treats --destination as a parent directory that must
+        # already exist and creates <destination>/<name>. A nonexistent destination
+        # fails before generation, which is how every profile silently broke.
+        calls=[]
+        def fake_run(cmd, cwd):
+            calls.append((list(cmd), Path(cwd)))
+            if cmd[1]=='generate':
+                dest=Path(cmd[cmd.index('--destination')+1])
+                if not dest.is_dir():
+                    raise RuntimeError('destination directory does not exist')
+                project=dest/cmd[cmd.index('--name')+1]
+                project.mkdir()
+                (project/'Cargo.toml').write_text('[package]\nname="smoke"\n')
+                (project/'scripts').mkdir()
+                (project/'scripts/check_agents.py').write_text('')
+        with mock.patch.object(mod,'run',fake_run), \
+             mock.patch.object(mod.shutil,'which',lambda tool:'/usr/bin/'+tool):
+            errors=mod.generate_and_check(cargo_check=False)
+        self.assertEqual(errors,[])
+        self.assertEqual(len(calls),2*len(mod.PROFILES))
 
     def test_project_placeholder_rendering(self):
         for name in mod.PROFILES:

@@ -130,9 +130,11 @@ def generate_and_check(cargo_check: bool) -> list[str]:
             project=f"smoke-{name.replace('_','-')}"
             try:
                 generated = tmpdir / project
-                # --destination names the output directory itself, not its parent.
+                # cargo-generate 0.26 treats --destination as an existing parent
+                # directory and creates the project at <destination>/<name>.
+                generated.parent.mkdir(parents=True, exist_ok=True)
                 run(["cargo", "generate", "--path", str(ROOT / "templates" / name),
-                     "--name", project, "--destination", str(generated)], ROOT)
+                     "--name", project, "--destination", str(generated.parent)], ROOT)
                 if not (generated / "Cargo.toml").exists():
                     raise RuntimeError("No Cargo.toml at generated project path")
                 if "{{project-name}}" in (generated / "Cargo.toml").read_text():
