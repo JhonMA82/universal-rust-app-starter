@@ -14,9 +14,14 @@
     "kind": "native"
   },
   "desktop-egui": {
-    "desc": "Native egui/eframe application",
+    "desc": "Native egui/eframe application with the Egui Visual Forge toolkit",
     "skills": [
-      "egui-visual-validation"
+      "egui-visual-validation",
+      "egui-reconstruction",
+      "egui-scene-analysis",
+      "egui-ui-engineering",
+      "egui-runtime-verification",
+      "egui-visual-optimization"
     ],
     "kind": "native"
   },

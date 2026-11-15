@@ -7,6 +7,7 @@ References were inspected for architectural patterns; all starter scripts and bu
 - https://github.com/gauravsonii/rust_template — MIT OR Apache-2.0 — cargo-generate workflow design reference.
 - https://github.com/rewrite-rs/skills — BSD-3-Clause — Rust skill topic/quality reference (not copied).
 - https://github.com/full-stack-skills/rust-skills — Apache-2.0 — additional skill topic/quality reference (not copied).
+- `egui-visual-forge` v1.1 (user-supplied archive) — MIT — vendored into `templates/desktop-egui` as five skills, Python comparison tools, scene-format docs and an eframe example. No noncommercial code included; see the generated `LICENSE-EGUI-VISUAL-FORGE`.
 - https://agentskills.io/ — SKILL.md format.
 - https://github.com/modelcontextprotocol/rust-sdk — rmcp official examples and API reference.
 - https://github.com/emilk/eframe_template — egui/eframe reference.

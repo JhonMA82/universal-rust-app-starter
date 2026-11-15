@@ -29,6 +29,17 @@ Run additional profile-specific checks from README. Report checks you could not 
 - Keep credentials out of commits and logs.
 - Read only the relevant `.agents/skills/<skill>/SKILL.md` for the current task.
 
+## Visual reconstruction
+
+For screenshot-to-egui work, start with `.agents/skills/egui-reconstruction/SKILL.md` and use the bundled `tools/` comparators. Install `requirements.txt` before running them. These checks are optional for normal builds:
+
+```sh
+python3 tools/validate_toolkit.py
+python3 -m unittest discover -s tests -v
+```
+
+The workspace pins eframe/egui 0.36 while the bundled example targets 0.37. Match the workspace version before applying version-specific APIs. Never claim visual fidelity without a real capture and comparison.
+
 ## Delivery
 
 Summarize changed files, exact verification commands and results, known limits, and unverified assumptions. No invented success claims.

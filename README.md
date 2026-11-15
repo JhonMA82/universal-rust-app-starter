@@ -37,6 +37,8 @@ cargo generate --git https://github.com/YOUR-ACCOUNT/universal-rust-app-starter 
 
 For a locally unpacked source, execute `cargo generate --path templates/<profile> --name <app-name>` in a parent directory other than the template itself. See each profile README for dependencies and commands.
 
+`desktop-egui` also ships the vendored **Egui Visual Forge** toolkit (MIT): five reconstruction skills, Python comparison tools and a scene-format contract. Python dependencies are optional for normal builds; see the generated `docs/EGUI_VISUAL_FORGE.md`.
+
 ## Publish this starter to your GitHub account
 
 The repository includes a local publishing helper using the official [GitHub CLI](https://cli.github.com/). **It creates a new repository, pushes all tracked files, and tries to enable the GitHub template flag**. Visibility defaults to private. Nothing is uploaded until you invoke it.

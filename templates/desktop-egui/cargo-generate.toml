@@ -1,2 +1,6 @@
 [template]
 cargo_generate_version = ">=0.21.0"
+# Generated caches must not be scanned for Liquid tags or copied.
+ignore = ["__pycache__", "tools/__pycache__", "tests/__pycache__", ".venv", "target", "examples/eframe-starter/target"]
+# Python and requirements files contain format specifiers, not Liquid templates.
+exclude = ["**/*.py", "requirements.txt"]

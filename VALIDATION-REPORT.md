@@ -44,6 +44,15 @@ Five profiles failed compilation before these fixes and now pass: `mcp-stdio` an
 - No live MCP Inspector handshake: the MCP profiles compile and pass their unit tests, but no `initialize`/`list_tools`/`call_tool` exchange was performed against a running server.
 - `cargo audit` and the per-profile GitHub Actions workflows have not run on a hosted repository.
 
+## Addendum — Egui Visual Forge integration (2026-11-14)
+
+- Installed the five MIT `egui-*` reconstruction skills in the `desktop-egui` `.agents/skills` and `.claude/skills` mirrors; `scripts/check_agents.py` reports **14 validated skills; mirrors match**.
+- Vendored the forge Python tools, scene-format docs, `requirements.txt`, a standalone eframe 0.37 example and `tests/test_tools.py`.
+- `python3 tools/validate_toolkit.py`: **PASS**. `python3 -m unittest discover -s tests -v`: **13/13 PASS** (Pillow/NumPy/PyYAML venv).
+- Generated `desktop-egui` with cargo-generate 0.26.0, then `cargo fmt --all -- --check`, `cargo check --workspace --all-targets`, `cargo test --workspace` (1 passed) and `cargo clippy --workspace --all-targets -- -D warnings`: **PASS** with Rust 1.100.0.
+- `examples/eframe-starter` (standalone eframe/egui/egui_kittest 0.37.0): `cargo check --all-targets` **PASS**; `cargo test` **1 passed**.
+- Not performed: real display-server captures or pixel-fidelity claims against a user reference. The profile pins eframe/egui **0.36** while the bundled example targets **0.37**; this mismatch is documented in the generated `AGENTS.md`.
+
 ## How to finish the remaining checks
 
 ```sh

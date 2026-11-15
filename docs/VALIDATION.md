@@ -2,6 +2,8 @@
 
 Static audits prove TOML structure, placeholders, instruction completeness and file parity offline. They cannot prove crate APIs, framework integration, native linking, browser execution or MCP handshake. On 2026-11-14 all eleven profiles were also generated and compiled with a real toolchain (Rust 1.100.0, cargo-generate 0.26.0, `wasm32-unknown-unknown`): 11 PASS, 0 FAIL, 0 SKIP — see `VALIDATION-REPORT.md`. GUI runners, browser builds and live MCP handshakes are still unverified.
 
+The `desktop-egui` profile additionally carries the Egui Visual Forge Python toolkit (13 tests) and a standalone eframe 0.37 example; both were validated separately. This does not constitute a pixel-fidelity claim for any real screenshot.
+
 ## Integration pass status
 
 1. ~~Install current Rust stable, supported native GUI dependencies, cargo-generate, trunk, and Dioxus CLI where applicable.~~ Done for Rust stable and cargo-generate; `trunk`/`dx` were not needed for the compile pass.
