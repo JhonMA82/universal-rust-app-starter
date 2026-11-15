@@ -1,6 +1,7 @@
-# Validation report — v1.0.0
+# Validation report — v1.0.0 (unreleased fixes)
 
 **Packaging date:** 2026-11-14
+**Integration verification:** 2026-11-14, Rust 1.100.0 stable, cargo-generate 0.26.0, `wasm32-unknown-unknown` installed.
 
 ## Completed in the packaging environment
 
@@ -9,20 +10,48 @@
 - Parsed **23 GitHub Actions YAML files** for valid syntax.
 - Checked `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, architecture docs, required files and canonical skill frontmatter.
 - Verified every `.agents/skills` / `.claude/skills` pair is byte-identical.
-- Executed **7 Python unit tests** successfully, including negative tests proving the agent checker rejects missing instructions and changed skills.
+- Executed **8 Python unit tests** successfully, including negative tests proving the agent checker rejects missing instructions and changed skills, and a regression test pinning the cargo-generate `--destination` contract.
 - Confirmed both MIT and complete Apache-2.0 license text exist in all profiles.
 - Reviewed relevant current public examples for `eframe 0.36`, `rmcp 3.10`, and `Leptos 0.8` to improve alignment.
 
-## Not completed in this environment
+## Completed integration verification
 
-`rustc`, `cargo`, `cargo-generate`, `trunk` and `dx` were not installed. Therefore **no generated application has been compiled**, no Rust unit tests run, no browser smoke tests run, and no MCP tool calls executed. The project is an implemented v1 starter package with static validation, **not an integration-verified production release**.
+A real toolchain generated one project per profile in a scratch directory (removed afterwards), then ran `scripts/check_agents.py`, `cargo fmt --all -- --check`, compilation, and the generated unit tests:
 
-## How to finish integration verification
+| Profile | Generated | check_agents | fmt | Compile | Tests |
+| --- | --- | --- | --- | --- | --- |
+| library | yes | yes | yes | `cargo check --workspace --all-targets` | 4 passed |
+| cli | yes | yes | yes | `cargo check --workspace --all-targets` | 3 passed |
+| desktop-egui | yes | yes | yes | `cargo check --workspace --all-targets` | 1 passed |
+| desktop-egui-web | yes | yes | yes | `cargo check --workspace --all-targets` | 1 passed |
+| service-axum | yes | yes | yes | `cargo check --workspace --all-targets` | 1 passed |
+| mcp-stdio | yes | yes | yes | `cargo check --workspace --all-targets` | 1 passed |
+| mcp-http | yes | yes | yes | `cargo check --workspace --all-targets` | 1 passed |
+| mcp-client | yes | yes | yes | `cargo check --workspace --all-targets` | 0 passed |
+| web-leptos-csr | yes | yes | yes | `cargo check --target wasm32-unknown-unknown` | — |
+| web-leptos-fullstack | yes | yes | yes | `cargo check --workspace --all-targets` | 0 passed |
+| web-dioxus | yes | yes | yes | `cargo check --target wasm32-unknown-unknown` | — |
+
+Result: **11 PASS, 0 FAIL, 0 SKIP.** No `{{project-name}}` placeholder survived generation.
+
+`python3 tools/verify_templates.py --generate` also passes for all 11 profiles. Before the fix it failed for every profile in about three seconds, because cargo-generate 0.26 treats `--destination` as a parent directory that must already exist; the invocation and the misleading comment are corrected and pinned by `tests/test_templates.py::test_generate_passes_existing_parent_destination`.
+
+Five profiles failed compilation before these fixes and now pass: `mcp-stdio` and `mcp-http` (missing `schemars` dependency for the `JsonSchema` derive), `mcp-client` (missing `rmcp::ServiceExt`), `web-leptos-fullstack` (`leptos::ssr::render_to_string` removed in leptos 0.8) and `web-dioxus` (missing `macro`/`signals`/`launch` features).
+
+## Not covered by this verification
+
+- GUI runners were not executed: no `cargo run -p desktop` session with a display server and no Trunk/Dioxus browser smoke test.
+- No live MCP Inspector handshake: the MCP profiles compile and pass their unit tests, but no `initialize`/`list_tools`/`call_tool` exchange was performed against a running server.
+- `cargo audit` and the per-profile GitHub Actions workflows have not run on a hosted repository.
+
+## How to finish the remaining checks
 
 ```sh
-rustup target add wasm32-unknown-unknown
-cargo install cargo-generate --locked
-python3 tools/verify_templates.py --generate --cargo-check
+# from a generated project
+cargo run -p desktop            # desktop-egui / desktop-egui-web
+trunk serve                     # web-leptos-csr
+dx serve                        # web-dioxus
+cargo run                       # mcp-stdio / mcp-http, then connect an MCP Inspector client
 ```
 
-Then inspect GUI runners and browser builds and test MCP protocol handshakes using actual inspector clients. See `docs/VALIDATION.md` and `docs/PROFILE_MATRIX.md`. CI in `.github/workflows/validate-templates.yml` is set up to run generation + Rust checks when the repository is hosted on GitHub, but it has not been executed at packaging time.
+See `docs/VALIDATION.md` and `docs/PROFILE_MATRIX.md`.

@@ -1,21 +1,21 @@
-# Validation status (v1.0.0)
+# Validation status (v1.0.0 + unreleased fixes)
 
-This is a starter implementation, **not a validated compiled release** until Rust and each framework toolchain are executed. Python static audits can verify TOML structure, placeholders, instruction completeness and file parity offline; they cannot prove crate APIs, framework integration, native linking, browser execution or MCP handshake. The build environment used for initial packaging did not include `rustc`, `cargo`, `cargo-generate`, `trunk` or `dx`.
+Static audits prove TOML structure, placeholders, instruction completeness and file parity offline. They cannot prove crate APIs, framework integration, native linking, browser execution or MCP handshake. On 2026-11-14 all eleven profiles were also generated and compiled with a real toolchain (Rust 1.100.0, cargo-generate 0.26.0, `wasm32-unknown-unknown`): 11 PASS, 0 FAIL, 0 SKIP — see `VALIDATION-REPORT.md`. GUI runners, browser builds and live MCP handshakes are still unverified.
 
-## Required real integration pass (after extracting)
+## Integration pass status
 
-1. Install current Rust stable, supported native GUI dependencies, cargo-generate, trunk, and Dioxus CLI where applicable.
-2. Run `python3 tools/verify_templates.py --generate --cargo-check`. Inspect any failures without weakening checks.
-3. For egui desktop, run `cargo run -p desktop` on Linux/macOS/Windows with a display server. Visual inspect.
-4. For `desktop-egui-web` and Leptos CSR, run Trunk with browser smoke tests.
-5. For `web-dioxus`, run dx serve on browser.
-6. For MCP, launch stdio and HTTP servers and use a real MCP Inspector client for initialize/list/call.
-7. Check `cargo audit` and GitHub Actions workflows on a generated repository.
+1. ~~Install current Rust stable, supported native GUI dependencies, cargo-generate, trunk, and Dioxus CLI where applicable.~~ Done for Rust stable and cargo-generate; `trunk`/`dx` were not needed for the compile pass.
+2. ~~Run `python3 tools/verify_templates.py --generate --cargo-check` (or the equivalent per-profile smoke run). Inspect any failures without weakening checks.~~ Done: fixed `--generate` destination handling, then generated, formatted, compiled and unit-tested one project per profile.
+3. **Pending** — for egui desktop, run `cargo run -p desktop` on Linux/macOS/Windows with a display server. Visual inspect.
+4. **Pending** — for `desktop-egui-web` and Leptos CSR, run Trunk with browser smoke tests.
+5. **Pending** — for `web-dioxus`, run dx serve on browser.
+6. **Pending** — for MCP, launch stdio and HTTP servers and use a real MCP Inspector client for initialize/list/call.
+7. **Pending** — check `cargo audit` and GitHub Actions workflows on a generated repository.
 
 ## Known limits
 
-- `web-leptos-fullstack` is intentionally SSR-only, not a hydrated full-stack auth/database starter.
+- `web-leptos-fullstack` is intentionally SSR-only, not a hydrated full-stack auth/database starter. It renders with `RenderHtml::to_html()`.
 - No automatic GitHub publishing or deployment is configured.
-- No end-to-end UI snapshots or live MCP handshakes can be attested from static tests.
+- No end-to-end UI snapshots or live MCP handshakes can be attested from static tests or from the compile pass.
 - Dependency ranges are current-intent examples, not a replacement for a resolved `Cargo.lock`.
 - The complete Apache-2.0 and MIT text is bundled; replace copyright holders when you create your own project.

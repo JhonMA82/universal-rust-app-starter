@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Fix generated MCP profiles: declare the `schemars` dependency that `rmcp::schemars::JsonSchema` derive requires in `mcp-stdio` and `mcp-http`.
+- Fix `mcp-client`: import `rmcp::ServiceExt` so `serve`, `list_tools` and `cancel` resolve.
+- Fix `web-leptos-fullstack`: render SSR HTML with `RenderHtml::to_html()` instead of the removed `leptos::ssr::render_to_string`.
+- Fix `web-dioxus`: enable the `minimal` feature set (`macro`, `html`, `signals`, `hooks`, `launch`) alongside `web`.
+- Fix `tools/verify_templates.py --generate`: cargo-generate 0.26 treats `--destination` as an existing parent directory, so the checker no longer fails for every profile before generating.
+- Add a regression test that pins the cargo-generate destination contract.
+
 ## 1.0.0 — 2026-11-14
 
 - Introduces eleven independent Rust project subtemplates across six profile families.
