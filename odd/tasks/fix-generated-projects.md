@@ -40,7 +40,7 @@ S6 — `AGENTS.md` verification commands stay valid, and any command or message 
 - T5 — Fix `--generate` destination handling + regression test + docs (S5, S6).
 - T6 — Re-run the python suites and the 11-profile smoke run (S1-S6).
 
-Status: T1-T6 complete and verified. Work is uncommitted.
+Status: T1-T6 complete and verified, committed (812f69b, 374e83b, edc0b8e, 8ab407e). Feature closed on the user's explicit stop; native review for this candidate was declined by the host and is not retried.
 
 ## Log
 
@@ -51,3 +51,4 @@ Status: T1-T6 complete and verified. Work is uncommitted.
 - L5 (evidence, 2026-11-14): after the fixes, `python3 tools/verify_templates.py --generate` passes for all 11 profiles, `python3 -m unittest discover -s tests` passes 8 tests, and the per-profile smoke run reports `PASS=11 FAIL=0 SKIP=0` (library 4 tests, cli 3, desktop-egui 1, desktop-egui-web 1, service-axum 1, mcp-stdio 1, mcp-http 1, mcp-client 0, leptos-fullstack 0, leptos-csr and dioxus compile to wasm32). Docs updated: CHANGELOG.md, VALIDATION-REPORT.md, docs/VALIDATION.md.
 - L6 (evidence, 2026-11-14): committed as 812f69b (templates), 374e83b (verifier + regression test) and edc0b8e (docs + this document).
 - L7 (decision): native ASSESS on the committed range reported nativeRisk high (risk_evidence: process-spawning code in tools/verify_templates.py), so review was due. START returned `consent-declined-this-candidate`: the host declined consent for this exact candidate, no lineage was created and nothing was mutated. No retry; writer self-verification (8 unit tests, offline check, real `--generate`, 11/11 profile compile) stands.
+- L8 (verbatim, 2026-11-14 22:26): "cierralo ya" — explicit stop/closure. No open tasks, working tree clean, nothing pending.
