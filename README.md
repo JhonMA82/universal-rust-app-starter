@@ -1,4 +1,4 @@
-# Universal Rust App Starter · v1.0.0
+# Universal Rust App Starter · v2.0.0 candidate
 
 **A practical, multi-profile Rust application generator with agent-ready defaults.** This repository contains standalone subtemplates, not a runtime dependency for generated apps. Inspired by Rust AI-Driven Pipeline, efficient-egui-template (architecture only; PolyForm Noncommercial; no code copied), and rust_template (generation pattern only).
 

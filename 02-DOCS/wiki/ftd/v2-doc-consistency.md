@@ -40,6 +40,8 @@ Not:
       consistencia con 0 hallazgos y 17/17 pins alineados.
 - [x] Verificar estáticamente; prueba: `verify_templates.py` PASS y
       `unittest discover` 15 tests OK.
+- [x] Actualizar la versión del README; prueba: el título dice
+      `v2.0.0 candidate` y no queda `v1.0.0`.
 
 ## Evidence
 - `python3 tools/verify_templates.py` → `PASS offline: 11 profiles, manifests,
@@ -54,6 +56,8 @@ Not:
   y en `CHANGELOG` (`generate, test and lint`). Revalidación → `ISSUES: 0`,
   `verify_templates.py` PASS y 15 tests OK.
 - Límite: la suite compuesta no se ejecutó; `cargo generate` no está instalado.
+- `README.md:1` → `# Universal Rust App Starter · v2.0.0 candidate`;
+  `grep v1.0.0 README.md` no devuelve nada.
 
 ## Next
 Sin siguiente paso; el hook de cierre de rsc marcará el estado.
