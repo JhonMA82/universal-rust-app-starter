@@ -20,8 +20,6 @@
   "provenance": "Original starter code, see docs/SOURCES.md",
   "documentation": "docs/modules/engineering-demo.md",
   "files": [
-    "crates/app/src/lib.rs",
-    "crates/desktop/src/main.rs",
     "crates/starter-demo-domain/Cargo.toml",
     "crates/starter-demo-domain/src/lib.rs",
     "crates/starter-demo/Cargo.toml",
@@ -29,8 +27,7 @@
     "docs/modules/engineering-demo.md"
   ],
   "features": [
-    "starter-demo/ui-inspection",
-    "desktop/ui-inspection"
+    "starter-demo/ui-inspection"
   ],
   "checks": [
     "cargo test --workspace"
@@ -104,31 +101,8 @@
         ],
         "resolver": "3"
       }
-    },
-    "crates/app/Cargo.toml": {
-      "dependencies": {
-        "starter-demo": {
-          "path": "../starter-demo"
-        }
-      },
-      "features": {
-        "ui-inspection": [
-          "starter-demo/ui-inspection"
-        ]
-      }
-    },
-    "crates/desktop/Cargo.toml": {
-      "features": {
-        "ui-inspection": [
-          "ui_app/ui-inspection"
-        ]
-      }
     }
   },
-  "replace": {
-    "desktop-egui": [
-      "crates/app/src/lib.rs",
-      "crates/desktop/src/main.rs"
-    ]
-  }
+  "provider": "desktop-view",
+  "kind": "desktop-provider"
 }

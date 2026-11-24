@@ -32,5 +32,6 @@
         "resolver": "3"
       }
     }
-  }
+  },
+  "kind": "library"
 }

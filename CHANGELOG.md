@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased stabilization
+
+- Route ordinary presets and references through the same generated entrypoints.
+- Register dynamic panel instances and dispatch operations from the command palette.
+- Require explicit snapshot isolation and a registered document-save completion.
+- Enable opt-in authenticated live MCP and verify discovery and disconnection.
+- Validate documentation and expand native, browser and composition checks.
+
 ## Unreleased
 
 - Add the optional modular v2 candidate: `generator/compose.py` composes the existing Cargo Generate profiles with 17 versioned modules and four presets (`minimal`, `application`, `workbench`, `engineering`), plus three autonomous reference projects (Document Workbench, Data Explorer, Engineering Workbench).

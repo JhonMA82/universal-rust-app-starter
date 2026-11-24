@@ -2,7 +2,9 @@
   "id": "documents",
   "version": "0.1.0",
   "description": "Document history, versioned formats and verified storage",
-  "dependencies": [],
+  "dependencies": [
+    "application-core@0.1.0"
+  ],
   "profiles": [],
   "targets": [
     "native",
@@ -15,6 +17,8 @@
     "crates/starter-documents/Cargo.toml",
     "crates/starter-documents/src/lib.rs",
     "crates/starter-documents/src/storage.rs",
+    "crates/starter-notes/Cargo.toml",
+    "crates/starter-notes/src/lib.rs",
     "docs/modules/documents.md"
   ],
   "features": [],
@@ -43,16 +47,35 @@
           }
         }
       }
+    },
+    "crates/starter-notes/Cargo.toml": {
+      "dependencies": {
+        "starter-core": {
+          "path": "../starter-core"
+        },
+        "serde": {
+          "version": "1",
+          "features": [
+            "derive"
+          ]
+        },
+        "schemars": "1",
+        "starter-documents": {
+          "path": "../starter-documents"
+        }
+      }
     }
   },
   "manifests": {
     "Cargo.toml": {
       "workspace": {
         "members": [
-          "crates/starter-documents"
+          "crates/starter-documents",
+          "crates/starter-notes"
         ],
         "resolver": "3"
       }
     }
-  }
+  },
+  "kind": "capability"
 }

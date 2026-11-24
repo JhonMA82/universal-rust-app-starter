@@ -8,9 +8,11 @@ publish = false
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "wgpu"] }
 starter-reference = { path = "../starter-reference" }
 starter-desktop = { path = "../starter-desktop" }
-starter-demo-domain = { path = "../starter-demo-domain" }
+starter-notes = { path = "../starter-notes" }
 serde_json = "1"
 starter-documents = { path = "../starter-documents" }
+
+starter-tasks = { path = "../starter-tasks" }
 
 [features]
 ui-inspection = ["starter-reference/ui-inspection"]

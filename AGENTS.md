@@ -7,11 +7,13 @@ Build an extensible but lean Rust *project generator*, not a methodology, person
 
 ```sh
 python3 tools/verify_templates.py
+python3 tools/check_docs.py
 python3 -m unittest discover -s tests -v
 # When cargo-generate and rustc are installed:
 python3 tools/verify_templates.py --generate --cargo-check
 # Modular composition (writes evidence; never commit it):
 python3 tools/verify_composed.py --reference document-workbench --evidence evidence/reference.json
+python3 tools/verify_composed.py --ordinary --evidence evidence/ordinary.json
 python3 tools/verify_composed.py --hybrid --evidence evidence/hybrid.json
 ```
 

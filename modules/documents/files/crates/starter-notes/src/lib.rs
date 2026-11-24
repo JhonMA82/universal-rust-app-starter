@@ -58,7 +58,17 @@ fn definition(
         description,
         permission,
         public: true,
-        available: |_, _| true,
+        available: if matches!(id, "notes.list" | "notes.new") {
+            |_, _| true
+        } else {
+            |state, request| {
+                request
+                    .document_id
+                    .as_deref()
+                    .and_then(|id| id.parse().ok())
+                    .is_some_and(|id: u64| state.notes.contains_key(&id))
+            }
+        },
     }
 }
 fn id(req: &Request) -> Result<u64, Error> {
@@ -155,5 +165,33 @@ pub fn application() -> Application<Domain> {
         )
         .unwrap();
     }
+    app.command(
+        Definition {
+            public: false,
+            ..definition("notes.saved", "Record a verified write", "write")
+        },
+        Kind::Document,
+        |state, saved: Edit, req| {
+            let history = state
+                .notes
+                .get_mut(&id(req)?)
+                .ok_or_else(|| error("unknown document"))?;
+            let revision = saved
+                .if_revision
+                .ok_or_else(|| error("saved revision required"))?;
+            (format().validate)(&saved.text).map_err(error)?;
+            if revision > history.revision()
+                || (revision == history.revision() && history.value() != &saved.text)
+            {
+                return Err(Error::new(
+                    "conflict",
+                    "saved snapshot does not match the document",
+                ));
+            }
+            history.mark_saved(Arc::new(saved.text));
+            Ok(())
+        },
+    )
+    .unwrap();
     app
 }

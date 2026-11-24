@@ -5,7 +5,12 @@
   "dependencies": [
     "application-core@0.1.0"
   ],
-  "profiles": [],
+  "profiles": [
+    "cli",
+    "desktop-egui",
+    "mcp-stdio",
+    "mcp-http"
+  ],
   "targets": [
     "native"
   ],
@@ -16,6 +21,7 @@
     ".agents/skills/application-operations/SKILL.md",
     "crates/starter-mcp/Cargo.toml",
     "crates/starter-mcp/src/lib.rs",
+    "crates/starter-mcp/src/live.rs",
     "docs/modules/application-mcp.md"
   ],
   "features": [],
@@ -30,7 +36,8 @@
           "version": "3.11",
           "features": [
             "server",
-            "transport-io"
+            "transport-io",
+            "transport-streamable-http-server"
           ]
         },
         "schemars": "1",
@@ -48,9 +55,14 @@
           "version": "1",
           "features": [
             "rt-multi-thread",
-            "io-std"
+            "io-std",
+            "net",
+            "sync"
           ]
-        }
+        },
+        "axum": "0.8",
+        "subtle": "2",
+        "tempfile": "3"
       }
     }
   },
@@ -63,5 +75,6 @@
         "resolver": "3"
       }
     }
-  }
+  },
+  "kind": "adapter"
 }

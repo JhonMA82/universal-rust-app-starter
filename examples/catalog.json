@@ -1,5 +1,26 @@
 {
-  "document-workbench": {"profile": "desktop-egui", "preset": "workbench", "modules": ["document-demo"]},
-  "data-explorer": {"profile": "desktop-egui", "preset": "application", "modules": ["data-demo"]},
-  "engineering-workbench": {"profile": "desktop-egui", "preset": "engineering", "modules": ["engineering-demo"]}
+  "document-workbench": {
+    "profile": "desktop-egui",
+    "preset": "workbench",
+    "modules": [
+      "document-demo",
+      "application-mcp"
+    ]
+  },
+  "data-explorer": {
+    "profile": "desktop-egui",
+    "preset": "application",
+    "modules": [
+      "data-demo",
+      "application-mcp"
+    ]
+  },
+  "engineering-workbench": {
+    "profile": "desktop-egui",
+    "preset": "engineering",
+    "modules": [
+      "engineering-demo",
+      "application-mcp"
+    ]
+  }
 }

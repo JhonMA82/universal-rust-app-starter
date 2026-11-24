@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+pub mod sample;
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -45,7 +46,7 @@ pub enum Kind {
     Presentation,
     Document,
 }
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Operation {
     pub id: &'static str,
     pub description: &'static str,
@@ -84,16 +85,27 @@ pub struct Event {
 pub struct Application<S> {
     entries: BTreeMap<&'static str, Entry<S>>,
     state: S,
+    snapshot: fn(&S) -> Result<S, Error>,
     revision: u64,
     retention: usize,
     receipts: VecDeque<(Request, Response)>,
     events: VecDeque<Event>,
 }
 impl<S: Clone + 'static> Application<S> {
+    /// Convenience for value-owned models and immutable copy-on-write state.
+    /// Rust Clone alone does not isolate shared mutable data.
     pub fn new(state: S, retention: usize) -> Self {
+        Self::with_snapshot(state, retention, |state| Ok(state.clone()))
+    }
+}
+impl<S: 'static> Application<S> {
+    /// The snapshot function must isolate all mutable command state. Neither
+    /// command handlers nor queries should perform effects or mutate shared state.
+    pub fn with_snapshot(state: S, retention: usize, snapshot: fn(&S) -> Result<S, Error>) -> Self {
         Self {
             entries: BTreeMap::new(),
             state,
+            snapshot,
             revision: 0,
             retention,
             receipts: VecDeque::new(),
@@ -178,10 +190,16 @@ impl<S: Clone + 'static> Application<S> {
                 (!public_only || op.public) && session.permissions.contains(op.permission)
             })
     }
-    /// Record an infrastructure acknowledgement, such as the saved version of a document.
-    /// Domain changes must use a registered operation.
-    pub fn acknowledge(&mut self, update: impl FnOnce(&mut S)) {
-        update(&mut self.state);
+    pub fn available(&self, session: &Session, public_only: bool, request: &Request) -> bool {
+        request.session_id == session.id
+            && self
+                .entries
+                .get(request.command_id.as_str())
+                .is_some_and(|entry| {
+                    (!public_only || entry.operation.public)
+                        && session.permissions.contains(entry.operation.permission)
+                        && (entry.available)(&self.state, request)
+                })
     }
 
     pub fn invoke(
@@ -233,7 +251,7 @@ impl<S: Clone + 'static> Application<S> {
                     .revision
                     .checked_add(1)
                     .ok_or_else(|| Error::new("internal", "revision exhausted"))?;
-                let mut candidate = self.state.clone();
+                let mut candidate = (self.snapshot)(&self.state)?;
                 let output = run(&mut candidate, &request)?;
                 self.state = candidate;
                 self.revision = revision;
@@ -342,5 +360,61 @@ mod tests {
             "conflict"
         );
         assert_eq!(app.events().len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod isolation {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn custom_snapshot_can_isolate_shared_mutability() {
+        let original = Arc::new(Mutex::new(3));
+        let mut app = Application::with_snapshot(original.clone(), 4, |state| {
+            Ok(Arc::new(Mutex::new(*state.lock().unwrap())))
+        });
+        app.command(
+            Definition {
+                id: "change",
+                description: "Change the value",
+                permission: "write",
+                available: |_, _| true,
+                public: false,
+            },
+            Kind::Command,
+            |state, value: i32, _| -> Result<i32, Error> {
+                *state.lock().unwrap() = value;
+                if value < 0 {
+                    return Err(Error::new("rejected", "negative"));
+                }
+                Ok(value)
+            },
+        )
+        .unwrap();
+        let session = sample::session();
+        let rejected = sample::request("change", serde_json::json!(-1));
+        assert_eq!(
+            app.invoke(&session, true, rejected.clone())
+                .unwrap_err()
+                .code,
+            "unknown_operation"
+        );
+        assert_eq!(
+            app.invoke(&session, false, rejected).unwrap_err().code,
+            "rejected"
+        );
+        assert_eq!(*original.lock().unwrap(), 3);
+        assert_eq!(app.revision(), 0);
+        assert!(app.events().is_empty());
+        app.invoke(
+            &session,
+            false,
+            sample::request("change", serde_json::json!(5)),
+        )
+        .unwrap();
+        assert_eq!(*app.state().lock().unwrap(), 5);
+        assert_eq!(*original.lock().unwrap(), 3);
+        assert_eq!(app.revision(), 1);
     }
 }

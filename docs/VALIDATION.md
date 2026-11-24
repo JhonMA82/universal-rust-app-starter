@@ -1,40 +1,29 @@
-# Validation status (v1.0.0 + modular v2 candidate)
+# Verification and evidence
 
-Static audits prove TOML structure, placeholders, instruction completeness and file parity offline. They cannot prove crate APIs, framework integration, native linking, browser execution or MCP handshake. On 2026-11-14 all eleven profiles were also generated and compiled with a real toolchain (Rust 1.100.0, cargo-generate 0.26.0, `wasm32-unknown-unknown`): 11 PASS, 0 FAIL, 0 SKIP — see `VALIDATION-REPORT.md`. GUI runners, browser builds and live MCP handshakes are still unverified.
-
-The `desktop-egui` profile additionally carries the Egui Visual Forge Python toolkit (13 tests) and a standalone eframe 0.37 example; both were validated separately. This does not constitute a pixel-fidelity claim for any real screenshot.
-
-All templates expose canonical `.agents/skills` through a relative `.claude/skills` symlink. cargo-generate skips symlinks, so generated projects recreate the link on the first `scripts/check_agents.py` run; all 11 profiles were generated and checked.
-
-## Integration pass status
-
-1. ~~Install current Rust stable, supported native GUI dependencies, cargo-generate, trunk, and Dioxus CLI where applicable.~~ Done for Rust stable and cargo-generate; `trunk`/`dx` were not needed for the compile pass.
-2. ~~Run `python3 tools/verify_templates.py --generate --cargo-check` (or the equivalent per-profile smoke run). Inspect any failures without weakening checks.~~ Done: fixed `--generate` destination handling, then generated, formatted, compiled and unit-tested one project per profile.
-3. **Pending** — for egui desktop, run `cargo run -p desktop` on Linux/macOS/Windows with a display server. Visual inspect.
-4. **Pending** — for `desktop-egui-web` and Leptos CSR, run Trunk with browser smoke tests.
-5. **Pending** — for `web-dioxus`, run dx serve on browser.
-6. **Pending** — for MCP, launch stdio and HTTP servers and use a real MCP Inspector client for initialize/list/call.
-7. **Pending** — check `cargo audit` and GitHub Actions workflows on a generated repository.
-
-## Known limits
-
-- `web-leptos-fullstack` is intentionally SSR-only, not a hydrated full-stack auth/database starter. It renders with `RenderHtml::to_html()`.
-- No automatic GitHub publishing or deployment is configured.
-- No end-to-end UI snapshots or live MCP handshakes can be attested from static tests or from the compile pass.
-- Dependency ranges are current-intent examples, not a replacement for a resolved `Cargo.lock`.
-- The complete Apache-2.0 and MIT text is bundled; replace copyright holders when you create your own project.
-
-## Modular validation
+Run from the starter checkout with Python 3.11+, Rust, rustfmt, Clippy and Cargo
+Generate 0.26.0. Install the pinned Python generator requirements.
 
 ```sh
+python3 tools/verify_templates.py
 python3 -m unittest discover -s tests -v
+python3 tools/check_docs.py
 python3 tools/verify_templates.py --generate --cargo-check
+python3 tools/verify_composed.py --ordinary --evidence evidence/ordinary.json
 python3 tools/verify_composed.py --evidence evidence/references.json
 python3 tools/verify_composed.py --hybrid --evidence evidence/hybrid.json
 ```
 
-Add `--visual` with a suitable wgpu adapter. The headless workflow captures
-the gallery interaction and viewport. To inspect a live app, enable the
-optional loopback UI bridge as documented in the reference runtime module.
-The report distinguishes process workflows and headless graphics from
-native-window and browser runs.
+Reference checks build the generated binaries and execute CLI and MCP
+scenarios. Live MCP checks discovery, authentication, operation execution and
+exit over local Streamable HTTP. Use `--visual` for wgpu gallery and viewport
+captures. Use `--native-window` for an opt-in native inspection test from the
+Document Workbench. It needs a real display and accesses the same inspection
+endpoint used by the development bridge.
+
+Run `python3 tools/verify_browser.py --screenshots evidence/browser` with
+Trunk and Playwright Chromium installed. It exercises a Leptos operation and
+verifies that the hybrid egui runner starts after loading its WASM bundle.
+The workflow covers native tests on Linux, Windows and macOS, with separate
+visual, browser and WASM jobs on Linux. Workflow status is independent from
+locally produced evidence. Store evidence outside the source tree or in the
+ignored `evidence/` directory.

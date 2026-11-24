@@ -18,6 +18,22 @@ impl Tolerance {
                     .max(self.relative * actual.abs().max(expected.abs()))
     }
 }
+/// A scalar reference with named units, explicit provenance and error bounds.
+/// Convert both values to the documented unit before comparing.
+pub struct ReferenceCase<I> {
+    pub name: &'static str,
+    pub input: I,
+    pub unit: &'static str,
+    pub expected: f64,
+    pub tolerance: Tolerance,
+    pub provenance: &'static str,
+}
+impl<I> ReferenceCase<I> {
+    pub fn verify(&self, actual: f64) -> bool {
+        self.tolerance.agrees(actual, self.expected)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -25,8 +41,15 @@ mod tests {
     fn unit_conversion_matches_known_volume() {
         let side = quantities::Length::new::<length::centimeter>(100.0);
         let v = (side * side * side).get::<volume::cubic_meter>();
-        let tolerance = Tolerance::new(1e-12, 1e-12).unwrap();
-        assert!(tolerance.agrees(v, 1.0));
-        assert!(!tolerance.agrees(v, f64::NAN));
+        let case = ReferenceCase {
+            name: "one meter cube",
+            input: side,
+            unit: "m³",
+            expected: 1.0,
+            tolerance: Tolerance::new(1e-12, 1e-12).unwrap(),
+            provenance: "100 cm = 1 m; volume = side³",
+        };
+        assert!(case.verify(v));
+        assert!(!case.verify(f64::NAN));
     }
 }

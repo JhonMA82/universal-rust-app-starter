@@ -9,3 +9,8 @@ the destination and use paths approved by the application. Filesystems and
 outside writers determine the remaining conflict and durability risks.
 
 Run `cargo test -p starter-documents` for migration, reopen and conflict checks.
+
+`starter-notes` is the portable note engine used by native and hybrid
+workbenches. Native disk saves register the confirmed write through the
+private `notes.saved` operation. Hybrid notes keep editing and history in
+memory. Detached worker jobs write separate native recovery files.

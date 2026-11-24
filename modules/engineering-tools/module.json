@@ -39,5 +39,6 @@
         "resolver": "3"
       }
     }
-  }
+  },
+  "kind": "development"
 }

@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+pub mod live;
 use rmcp::{
     ServerHandler, ServiceExt,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -17,7 +18,7 @@ struct Adapter<S> {
     app: Arc<Mutex<Application<S>>>,
     session: Session,
 }
-impl<S: Clone + Send + 'static> Service for Adapter<S> {
+impl<S: Send + 'static> Service for Adapter<S> {
     fn capabilities(&self) -> Result<Value, Error> {
         let app = self
             .app
@@ -44,10 +45,7 @@ struct Batch {
 }
 #[tool_router]
 impl Server {
-    pub fn new<S: Clone + Send + 'static>(
-        app: Arc<Mutex<Application<S>>>,
-        session: Session,
-    ) -> Self {
+    pub fn new<S: Send + 'static>(app: Arc<Mutex<Application<S>>>, session: Session) -> Self {
         Self {
             tool_router: Self::tool_router(),
             adapter: Arc::new(Adapter { app, session }),

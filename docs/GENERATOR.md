@@ -26,3 +26,24 @@ Cargo metadata and the agent readiness checker before moving into place.
 Direct Cargo Generate remains available for every original profile.
 A generated project owns its source and does not require the starter to build.
 Resolve and retain a Cargo.lock when taking a project into production.
+
+## Effective entrypoints
+
+Minimal keeps the original profile programs. Application provides a portable
+settings engine connected to CLI, web controls, service endpoints or an
+exported library API as appropriate. The MCP client keeps its client as the
+default executable and adds a separate operations companion.
+
+Native Workbench and Engineering use the same document and engineering
+providers selected by the corresponding references. Selecting the data module
+on a native egui profile selects the Data Explorer provider unless an explicit
+provider is selected. Hybrid Workbench uses the same typed notes and history
+in a browser-compatible view. That view retains content in memory and provides
+no native file picker or native filesystem writes.
+
+A profile adapter installs executable entrypoints. Library and development
+modules make their API or tooling available without implicitly starting a
+listener or starting a job. The generated report lists entrypoints separately
+from installed modules. Targets and optional Cargo features record intent.
+The compatibility check always covers the profile's retained entrypoints.
+The composer requires rustfmt for integrated builds.

@@ -5,7 +5,10 @@
   "dependencies": [
     "application-core@0.1.0"
   ],
-  "profiles": [],
+  "profiles": [
+    "service-axum",
+    "web-leptos-fullstack"
+  ],
   "targets": [
     "native"
   ],
@@ -43,5 +46,6 @@
         "resolver": "3"
       }
     }
-  }
+  },
+  "kind": "adapter"
 }

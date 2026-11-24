@@ -14,6 +14,7 @@
   "files": [
     "crates/starter-core/Cargo.toml",
     "crates/starter-core/src/lib.rs",
+    "crates/starter-core/src/sample.rs",
     "docs/modules/application-core.md"
   ],
   "features": [],
@@ -44,5 +45,6 @@
         "resolver": "3"
       }
     }
-  }
+  },
+  "kind": "engine"
 }

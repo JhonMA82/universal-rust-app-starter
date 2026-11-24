@@ -67,12 +67,7 @@ impl View for Engineering {
                 ("Height ", &mut self.draft.height_m),
                 ("Depth ", &mut self.draft.depth_m),
             ] {
-                ui.add(
-                    egui::DragValue::new(dimension)
-                        .range(0.01..=10.0)
-                        .prefix(name)
-                        .suffix(" m"),
-                );
+                starter_desktop::unit_field(ui, name, " m", dimension, 0.01..=10.0);
             }
         });
         ui.horizontal(|ui| {

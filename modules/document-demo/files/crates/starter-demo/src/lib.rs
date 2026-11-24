@@ -1,13 +1,14 @@
 #![forbid(unsafe_code)]
 use eframe::egui;
 use serde_json::{Value, json};
-use starter_demo_domain::{Domain, application, format, note};
 use starter_desktop::Panel;
 use starter_documents::{
     Envelope, Error,
     storage::{self, Checksum},
 };
+use starter_notes::{Domain, application, format, note};
 use starter_reference::{Shared, View, invoke};
+use starter_tasks::{Job, Pool};
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -27,6 +28,8 @@ struct Editor {
     status: (String, bool),
     last_save: Instant,
     recovery: String,
+    workers: Pool,
+    autosave: Option<Job<(), Error>>,
 }
 impl Editor {
     fn select(&mut self, id: u64) {
@@ -110,24 +113,79 @@ impl Editor {
                     extra: doc.extra,
                 },
             );
-            self.app
-                .lock()
-                .expect("application mutex")
-                .acknowledge(|state| {
-                    if let Some(h) = state.notes.get_mut(&id) {
-                        h.mark_saved(value);
-                    }
-                });
-            match std::fs::remove_file(self.recovery_path(id)) {
-                Ok(()) => {}
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                Err(e) => eprintln!("Recovery cleanup: {e}"),
+            invoke(
+                &self.app,
+                "notes.saved",
+                json!({"text": &*value, "if_revision": revision}),
+                Some(id),
+                None,
+            )
+            .map_err(|error| Error::Invalid(error.message))?;
+            if self.autosave.is_none() {
+                match std::fs::remove_file(self.recovery_path(id)) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => eprintln!("Recovery cleanup: {e}"),
+                }
             }
         }
         Ok(())
     }
 }
 impl View for Editor {
+    fn active_document(&self) -> Option<u64> {
+        Some(self.current)
+    }
+    fn request_save(&mut self) -> bool {
+        if self.drafts.iter().any(|(id, (_, draft))| {
+            self.app
+                .lock()
+                .expect("application mutex")
+                .state()
+                .notes
+                .get(id)
+                .is_some_and(|note| note.value() != draft)
+        }) {
+            self.status = ("Apply pending drafts before saving".into(), true);
+            return false;
+        }
+        let dirty: Vec<_> = self
+            .app
+            .lock()
+            .expect("application mutex")
+            .state()
+            .notes
+            .iter()
+            .filter_map(|(&id, h)| h.dirty().then_some(id))
+            .collect();
+        for id in dirty {
+            let path = self
+                .files
+                .get(&id)
+                .map(|file| file.path.clone())
+                .or_else(|| (id == self.current).then(|| PathBuf::from(&self.path)));
+            let Some(path) = path else {
+                self.status = (format!("Choose a path for note {id}"), true);
+                return false;
+            };
+            if let Err(error) = self.save(id, path, false) {
+                self.status = (error.to_string(), true);
+                return false;
+            }
+        }
+        true
+    }
+    fn panels(&self) -> &[starter_desktop::PanelSpec] {
+        static PANELS: [starter_desktop::PanelSpec; 1] = [starter_desktop::PanelSpec {
+            instance: 100,
+            kind: "notes.recovery",
+            title: "Recovery",
+            floating: true,
+            initially_open: false,
+        }];
+        &PANELS
+    }
+
     fn status(&self) -> (String, bool) {
         self.status.clone()
     }
@@ -141,33 +199,98 @@ impl View for Editor {
             .any(|(id, h)| h.dirty() || self.drafts.get(id).is_some_and(|(_, s)| s != h.value()))
     }
     fn tick(&mut self) {
+        if let Some(job) = self.autosave.as_mut() {
+            // This job only writes separate recovery files. It never applies
+            // an application result, even when the domain changes while it runs.
+            if let Some(result) = job.poll(job.origin) {
+                self.autosave = None;
+                if let Err(error) = result {
+                    self.status = (format!("Autosave: {error:?}"), true);
+                }
+            }
+            return;
+        }
         if self.last_save.elapsed() < Duration::from_secs(15) {
             return;
         }
         self.last_save = Instant::now();
-        let dirty: Vec<_> = self
-            .app
-            .lock()
-            .expect("application mutex")
-            .state()
-            .notes
-            .iter()
-            .filter_map(|(&id, h)| h.dirty().then_some(id))
-            .collect();
-        if dirty.is_empty() {
+        let snapshots: Vec<_> = {
+            let app = self.app.lock().expect("application mutex");
+            app.state()
+                .notes
+                .iter()
+                .filter(|(_, h)| h.dirty())
+                .map(|(&id, h)| {
+                    let extra = self
+                        .files
+                        .get(&id)
+                        .map(|file| file.extra.clone())
+                        .unwrap_or_default();
+                    (
+                        self.recovery_path(id),
+                        (*h.snapshot()).clone(),
+                        h.revision(),
+                        extra,
+                    )
+                })
+                .collect()
+        };
+        if snapshots.is_empty() {
             return;
         }
-        if let Err(e) = std::fs::create_dir_all(".note-recovery") {
-            self.status = (e.to_string(), true);
-            return;
-        }
-        for id in dirty {
-            if let Err(e) = self.save(id, self.recovery_path(id), true) {
-                self.status = (e.to_string(), true);
+        match self.workers.start(0, move |control| {
+            std::fs::create_dir_all(".note-recovery")?;
+            let format = format();
+            let total = snapshots.len();
+            for (index, (path, content, revision, extra)) in snapshots.into_iter().enumerate() {
+                if control.cancelled() {
+                    return Ok(());
+                }
+                let expected = match storage::open(&path, &format) {
+                    Ok((_, sum)) => Some(sum),
+                    Err(Error::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => None,
+                    Err(e) => return Err(e),
+                };
+                let value = Envelope {
+                    format: format.id.into(),
+                    version: format.version,
+                    revision,
+                    content,
+                    extra,
+                };
+                storage::save(&path, &format, &value, expected)?;
+                control.report(((index + 1) * 10_000 / total) as u16);
             }
+            Ok(())
+        }) {
+            Ok(job) => self.autosave = Some(job),
+            Err(error) => self.status = (error.to_string(), true),
         }
     }
     fn show(&mut self, panel: Panel, ui: &mut egui::Ui) {
+        if panel == Panel::Custom(100) {
+            ui.heading("Recovery");
+            if let Ok(files) = std::fs::read_dir(".note-recovery") {
+                for path in files
+                    .flatten()
+                    .map(|f| f.path())
+                    .filter(|p| p.extension().is_some_and(|x| x == "json"))
+                    .take(64)
+                {
+                    if ui
+                        .button(format!(
+                            "Recover {}",
+                            path.file_name().unwrap_or_default().to_string_lossy()
+                        ))
+                        .clicked()
+                    {
+                        self.status = message(self.read(&path, true), "Recovered into a new note");
+                    }
+                }
+            }
+            return;
+        }
+
         let (ids, current) = {
             let app = self.app.lock().expect("application mutex");
             let state = app.state();
@@ -205,7 +328,8 @@ impl View for Editor {
                 .drafts
                 .entry(note.id)
                 .or_insert((note.revision, note.text));
-            ui.text_edit_multiline(&mut draft.1);
+            let label = ui.label("Note body");
+            ui.text_edit_multiline(&mut draft.1).labelled_by(label.id);
             if draft.0 != note.revision {
                 if ui.button("Reload current version").clicked() {
                     self.drafts.remove(&note.id);
@@ -227,8 +351,9 @@ impl View for Editor {
             });
         }
         ui.separator();
-        ui.label("File path");
-        ui.text_edit_singleline(&mut self.path);
+        let label = ui.label("File path");
+        ui.text_edit_singleline(&mut self.path)
+            .labelled_by(label.id);
         ui.horizontal(|ui| {
             let path = PathBuf::from(&self.path);
             if ui.button("Open").clicked() {
@@ -238,24 +363,6 @@ impl View for Editor {
                 self.status = message(self.save(self.current, path, false), "Verified and saved");
             }
         });
-        if let Ok(files) = std::fs::read_dir(".note-recovery") {
-            for path in files
-                .flatten()
-                .map(|f| f.path())
-                .filter(|p| p.extension().is_some_and(|x| x == "json"))
-                .take(64)
-            {
-                if ui
-                    .button(format!(
-                        "Recover {}",
-                        path.file_name().unwrap_or_default().to_string_lossy()
-                    ))
-                    .clicked()
-                {
-                    self.status = message(self.read(&path, true), "Recovered into a new note");
-                }
-            }
-        }
     }
 }
 fn message(result: Result<(), Error>, success: &str) -> (String, bool) {
@@ -273,6 +380,8 @@ pub fn run() -> starter_reference::Result<()> {
         path: "note-1.json".into(),
         status: ("Ready".into(), false),
         last_save: Instant::now(),
+        workers: Pool::new(1),
+        autosave: None,
         recovery: format!(
             "note-{}-{}",
             std::process::id(),
@@ -301,6 +410,8 @@ mod tests {
             path: String::new(),
             status: (String::new(), false),
             last_save: Instant::now(),
+            workers: Pool::new(1),
+            autosave: None,
             recovery: "adapter-test".into(),
         };
         assert!(

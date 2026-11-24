@@ -1,24 +1,27 @@
 {
   "id": "reference-runtime",
   "version": "0.1.0",
-  "description": "Shared GUI, CLI and MCP reference entrypoints",
+  "description": "Shared egui host and optional native automation adapters",
   "dependencies": [
-    "desktop-shell@0.1.0",
-    "application-mcp@0.1.0",
-    "engineering-tools@0.1.0"
+    "application-core@0.1.0",
+    "desktop-shell@0.1.0"
   ],
   "profiles": [
-    "desktop-egui"
+    "desktop-egui",
+    "desktop-egui-web"
   ],
   "targets": [
-    "native"
+    "native",
+    "wasm"
   ],
   "license": "MIT OR Apache-2.0",
   "provenance": "Original starter code, see docs/SOURCES.md",
   "documentation": "docs/modules/reference-runtime.md",
   "files": [
     "crates/starter-reference/Cargo.toml",
+    "crates/starter-reference/examples/inspection_smoke.rs",
     "crates/starter-reference/src/lib.rs",
+    "crates/starter-reference/src/palette.rs",
     "docs/modules/reference-runtime.md"
   ],
   "features": [
@@ -47,17 +50,23 @@
         "starter-desktop": {
           "path": "../starter-desktop"
         },
-        "starter-mcp": {
-          "path": "../starter-mcp"
-        },
-        "serde_json": "1",
-        "egui_inspection": {
-          "version": "0.37",
-          "features": [
-            "plugin"
-          ],
-          "optional": true
+        "serde_json": "1"
+      },
+      "target": {
+        "cfg(not(target_arch = \"wasm32\"))": {
+          "dependencies": {
+            "egui_inspection": {
+              "version": "0.37",
+              "features": [
+                "plugin"
+              ],
+              "optional": true
+            }
+          }
         }
+      },
+      "dev-dependencies": {
+        "egui_kittest": "0.37"
       }
     }
   },
@@ -70,5 +79,6 @@
         "resolver": "3"
       }
     }
-  }
+  },
+  "kind": "composition-host"
 }

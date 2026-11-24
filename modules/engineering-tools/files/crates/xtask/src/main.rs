@@ -6,7 +6,8 @@ use std::{
 };
 
 fn main() -> ExitCode {
-    let cap = std::env::args().nth(1).unwrap_or_else(|| "verify".into());
+    let mut args = std::env::args().skip(1);
+    let cap = args.next().unwrap_or_else(|| "verify".into());
     let profile = std::fs::read("generation-report.json")
         .ok()
         .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
@@ -23,7 +24,36 @@ fn main() -> ExitCode {
             checks.push(run("cargo", &["--version"], "host"));
             checks.push(run("rustc", &["-vV"], "host"));
         }
-        "layers" => checks.push(layers("native")),
+        "layers" => {
+            if native {
+                checks.push(layers("native"));
+            }
+            if wasm {
+                checks.push(layers("wasm32-unknown-unknown"));
+            }
+        }
+        "coverage" if native => checks.push(cargo_tool("llvm-cov", &["--workspace"])),
+        "affected" if native => checks.push(affected(args.collect())),
+        "security" => checks.push(cargo_tool("audit", &[])),
+        "inspect"
+            if profile["entrypoints"]
+                .as_array()
+                .is_some_and(|items| items.iter().any(|item| item == "desktop")) =>
+        {
+            checks.push(run(
+                "cargo",
+                &["check", "-p", "desktop", "--features", "ui-inspection"],
+                "native",
+            ))
+        }
+        "ui-test" if native && profile["modules"]["desktop-shell"].is_string() => {
+            checks.push(run("cargo", &["test", "-p", "starter-desktop"], "native"))
+        }
+        "bundle" if profile["modules"]["distribution"].is_string() => checks.push(run(
+            if cfg!(windows) { "python" } else { "python3" },
+            &["scripts/package_release.py"],
+            "native",
+        )),
         "fast" | "verify" | "ci" => {
             checks.push(run("cargo", &["fmt", "--all", "--", "--check"], "host"));
             if native {
@@ -50,12 +80,13 @@ fn main() -> ExitCode {
                 }
             }
             if wasm {
+                checks.push(layers("wasm32-unknown-unknown"));
                 checks.push(wasm_check(&profile));
             }
         }
         "test" if native => checks.push(run("cargo", &["test", "--workspace"], "native")),
         "wasm" if wasm => checks.push(wasm_check(&profile)),
-        "test" | "wasm" => checks.push(record(
+        "test" | "wasm" | "coverage" | "inspect" | "ui-test" | "bundle" => checks.push(record(
             &cap,
             "profile",
             "not_applicable",
@@ -64,7 +95,9 @@ fn main() -> ExitCode {
         )),
         "docs" => checks.push(run("cargo", &["doc", "--workspace", "--no-deps"], "host")),
         _ => {
-            eprintln!("cargo xtask <doctor|layers|fast|verify|ci|test|wasm|docs>");
+            eprintln!(
+                "cargo xtask <doctor|layers|fast|verify|ci|test|wasm|docs|coverage|security|inspect|ui-test|bundle|affected>"
+            );
             return ExitCode::FAILURE;
         }
     }
@@ -88,6 +121,119 @@ fn main() -> ExitCode {
         ExitCode::SUCCESS
     }
 }
+fn affected(selected: Vec<String>) -> Value {
+    let start = Instant::now();
+    let command = format!("cargo xtask affected {}", selected.join(" "));
+    let metadata = Command::new("cargo")
+        .args(["metadata", "--format-version", "1", "--all-features"])
+        .output();
+    let graph: Value = match metadata {
+        Ok(result) if result.status.success() => match serde_json::from_slice(&result.stdout) {
+            Ok(value) => value,
+            Err(e) => {
+                return record(
+                    &command,
+                    "native",
+                    "failed",
+                    start.elapsed().as_millis(),
+                    &e.to_string(),
+                );
+            }
+        },
+        Ok(result) => {
+            return record(
+                &command,
+                "native",
+                "failed",
+                start.elapsed().as_millis(),
+                &String::from_utf8_lossy(&result.stderr),
+            );
+        }
+        Err(e) => {
+            return record(
+                &command,
+                "native",
+                "blocked",
+                start.elapsed().as_millis(),
+                &e.to_string(),
+            );
+        }
+    };
+    if let Err(error) = audit(&graph) {
+        return record(
+            &command,
+            "native",
+            "failed",
+            start.elapsed().as_millis(),
+            &error,
+        );
+    }
+    match reverse_dependents(&graph, &selected) {
+        Ok(names) => {
+            let mut args = vec!["check", "--all-targets"];
+            for name in &names {
+                args.extend(["-p", name]);
+            }
+            run("cargo", &args, "native")
+        }
+        Err(error) => record(
+            &command,
+            "native",
+            "failed",
+            start.elapsed().as_millis(),
+            &error,
+        ),
+    }
+}
+
+fn reverse_dependents(graph: &Value, changed: &[String]) -> Result<BTreeSet<String>, String> {
+    if changed.is_empty() {
+        return Err("pass the changed workspace package names".into());
+    }
+    let members = graph["workspace_members"]
+        .as_array()
+        .ok_or("workspace missing")?;
+    let owned: BTreeSet<_> = members.iter().filter_map(Value::as_str).collect();
+    let names: BTreeMap<_, _> = graph["packages"]
+        .as_array()
+        .ok_or("packages missing")?
+        .iter()
+        .filter_map(|p| Some((p["id"].as_str()?, p["name"].as_str()?)))
+        .filter(|(id, _)| owned.contains(id))
+        .collect();
+    let mut affected = BTreeSet::new();
+    for name in changed {
+        let id = names
+            .iter()
+            .find_map(|(id, package)| (*package == name).then_some(*id))
+            .ok_or_else(|| format!("unknown workspace package: {name}"))?;
+        affected.insert(id);
+    }
+    let nodes = graph["resolve"]["nodes"]
+        .as_array()
+        .ok_or("resolve graph missing")?;
+    loop {
+        let count = affected.len();
+        for node in nodes {
+            if let Some(id) = node["id"].as_str()
+                && node["deps"].as_array().is_some_and(|deps| {
+                    deps.iter()
+                        .any(|d| d["pkg"].as_str().is_some_and(|pkg| affected.contains(pkg)))
+                })
+            {
+                affected.insert(id);
+            }
+        }
+        if affected.len() == count {
+            break;
+        }
+    }
+    Ok(affected
+        .into_iter()
+        .filter_map(|id| names.get(id).map(|name| (*name).to_owned()))
+        .collect())
+}
+
 fn wasm_check(profile: &Value) -> Value {
     let mut args = vec!["check", "--target", "wasm32-unknown-unknown"];
     if let Some(package) = profile["wasm_package"].as_str() {
@@ -111,6 +257,21 @@ fn run(tool: &str, args: &[&str], target: &str) -> Value {
     };
     record(&cmd, target, status, start.elapsed().as_millis(), &reason)
 }
+fn cargo_tool(name: &str, extra: &[&str]) -> Value {
+    let version = Command::new("cargo").args([name, "--version"]).output();
+    if !version.is_ok_and(|out| out.status.success()) {
+        return record(
+            &format!("cargo {name}"),
+            "host",
+            "blocked",
+            0,
+            "install the required Cargo subcommand",
+        );
+    }
+    let mut args = vec![name];
+    args.extend(extra);
+    run("cargo", &args, "host")
+}
 fn host() -> Option<String> {
     let out = Command::new("rustc").arg("-vV").output().ok()?;
     if !out.status.success() {
@@ -122,7 +283,9 @@ fn layers(target: &str) -> Value {
     let start = Instant::now();
     let mut args = vec!["metadata", "--format-version", "1", "--all-features"];
     let info = host();
-    if let Some(triple) = info
+    if target != "native" {
+        args.extend(["--filter-platform", target]);
+    } else if let Some(triple) = info
         .as_deref()
         .and_then(|text| text.lines().find_map(|line| line.strip_prefix("host: ")))
     {
@@ -214,6 +377,17 @@ fn audit(graph: &Value) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn impact_selects_workspace_dependents() {
+        let graph = json!({"workspace_members":["a","b","c"],"packages":[
+            {"id":"a","name":"core"},{"id":"b","name":"adapter"},{"id":"c","name":"unrelated"}],
+            "resolve": {"nodes":[{"id":"a","deps":[]},{"id":"b","deps":[{"pkg":"a"}]},{"id":"c","deps":[]}]}});
+        assert_eq!(
+            reverse_dependents(&graph, &["core".into()]).unwrap(),
+            BTreeSet::from(["adapter".into(), "core".into()])
+        );
+    }
+
     #[test]
     fn detects_a_transitive_violation() {
         let d = json!({"packages":[{"id":"a","name":"starter-core"},{"id":"b","name":"bridge"},{"id":"c","name":"egui","version":"0.37"}],

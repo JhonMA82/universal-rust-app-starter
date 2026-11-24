@@ -42,7 +42,7 @@ impl<S> Adapter<S> {
         }
     }
 }
-pub fn router<S: Clone + Send + 'static>(
+pub fn router<S: Send + 'static>(
     app: Arc<Mutex<Application<S>>>,
     session: Session,
     bearer: &str,
@@ -64,17 +64,14 @@ pub fn router<S: Clone + Send + 'static>(
             authorization: format!("Bearer {bearer}"),
         })))
 }
-async fn discover<S: Clone + Send + 'static>(
-    State(s): State<Arc<Adapter<S>>>,
-    h: HeaderMap,
-) -> Reply {
+async fn discover<S: Send + 'static>(State(s): State<Arc<Adapter<S>>>, h: HeaderMap) -> Reply {
     s.authorize(&h)?;
     let app = s.app.lock().map_err(|_| unavailable())?;
     Ok(Json(
         json!({"session_id":s.session.id,"revision":app.revision(),"operations":app.discover(&s.session,true).collect::<Vec<_>>()}),
     ))
 }
-async fn invoke<S: Clone + Send + 'static>(
+async fn invoke<S: Send + 'static>(
     State(s): State<Arc<Adapter<S>>>,
     h: HeaderMap,
     Json(req): Json<Request>,

@@ -5,9 +5,12 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = false
 [dependencies]
-rmcp = { version = "3.11", features = ["server", "transport-io"] }
+rmcp = { version = "3.11", features = ["server", "transport-io", "transport-streamable-http-server"] }
 schemars = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 starter-core = { path = "../starter-core" }
-tokio = { version = "1", features = ["rt-multi-thread", "io-std"] }
+tokio = { version = "1", features = ["rt-multi-thread", "io-std", "net", "sync"] }
+axum = "0.8"
+subtle = "2"
+tempfile = "3"

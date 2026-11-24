@@ -10,6 +10,11 @@ import sys
 import tempfile
 import tomllib
 
+if __package__:
+    from . import integration
+else:
+    import integration
+
 ROOT = Path(__file__).resolve().parents[1]
 NAME = re.compile(r"[a-z][a-z0-9-]*\Z")
 REQUIREMENT = re.compile(r"([a-z][a-z0-9-]*)(?:@(\d+\.\d+\.\d+))?\Z")
@@ -171,8 +176,14 @@ def generate(profile, preset, name, destination, requested=(), targets=(), featu
     if not selected_targets <= valid_targets:
         raise CompositionError(f"incompatible targets: {sorted(selected_targets)}")
     modules = catalog()
-    ordered = resolve(modules, [*presets[preset], *requested], profile, valid_targets)
+    requested = [*presets[preset], *requested]
+    ordered = resolve(modules, requested, profile, valid_targets)
+    while needed := integration.plan(profile, preset, ordered, modules):
+        requested.extend(sorted(needed))
+        ordered = resolve(modules, requested, profile, valid_targets)
     declared_features = {feature for module in ordered for feature in modules[module]["features"]}
+    if "reference-runtime" in ordered:
+        declared_features.add("desktop/ui-inspection")
     if set(features) - declared_features:
         raise CompositionError(f"unsupported features: {sorted(set(features)-declared_features)}")
 
@@ -201,6 +212,9 @@ def generate(profile, preset, name, destination, requested=(), targets=(), featu
             target = project / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / "modules" / module / "files" / relative, target)
+        fragments, interfaces = integration.install(project, profile, ordered, modules, name=name, merge=merge)
+        for filename, fragment in fragments.items():
+            merge(manifests.setdefault(filename, {}), fragment)
         for filename, fragment in manifests.items():
             path = project / filename
             if path.is_symlink() or not path.resolve().is_relative_to(project):
@@ -208,15 +222,29 @@ def generate(profile, preset, name, destination, requested=(), targets=(), featu
             manifest = tomllib.loads(path.read_text(encoding="utf-8"))
             merge(manifest, fragment)
             path.write_text(tomli_w.dumps(manifest), encoding="utf-8", newline="\n")
+        if ordered:
+            module_doc = project / "docs/COMPOSITION.md"
+            modules_description = "\n".join(
+                f"- [{item}]({modules[item]['documentation'].removeprefix('docs/')}) — {modules[item]['description']}"
+                for item in ordered)
+            module_doc.write_text(
+                "# Generated composition\n\n" + f"Profile: `{profile}`. Preset: `{preset}`.\n\n"
+                + f"Entry points: {', '.join(interfaces) or 'base profile'}.\n\n"
+                + modules_description + "\n", encoding="utf-8")
+            for doc in ("AGENTS.md", "README.md"):
+                with (project / doc).open("a", encoding="utf-8") as stream:
+                    stream.write("\nSee [the generated composition](docs/COMPOSITION.md) for installed capabilities.\n")
         subprocess.run([sys.executable, "scripts/check_agents.py"], cwd=project, check=True)
         verify_autonomy(project)
         subprocess.run(["cargo", "metadata", "--no-deps", "--format-version", "1"],
                        cwd=project, stdout=subprocess.DEVNULL, check=True)
+        if interfaces:
+            subprocess.run(["cargo", "fmt", "--all"], cwd=project, check=True)
         report = {
-            "schema_version": 1, "name": name, "profile": profile, "preset": preset,
+            "schema_version": 2, "name": name, "profile": profile, "preset": preset,
             "targets": sorted(selected_targets), "profile_targets": sorted(valid_targets),
             "wasm_package": profiles[profile].get("wasm_package"), "features": sorted(set(features)),
-            "reference": reference, "modules": {item: modules[item]["version"] for item in ordered},
+            "reference": reference, "entrypoints": interfaces, "modules": {item: modules[item]["version"] for item in ordered},
             "required_checks": sorted({check for item in ordered for check in modules[item]["checks"]}),
             "sha256": {p.relative_to(project).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
                        for p in sorted(project.rglob("*")) if p.is_file() and not p.is_symlink()},
@@ -235,8 +263,8 @@ def main():
     profile.add_argument("--reference")
     parser.add_argument("--preset")
     parser.add_argument("--module", action="append", default=[])
-    parser.add_argument("--target", action="append", choices=["native", "wasm"], default=[])
-    parser.add_argument("--feature", action="append", default=[])
+    parser.add_argument("--target", action="append", choices=["native", "wasm"], default=[], help="record verification target; keeps the profile entrypoints")
+    parser.add_argument("--feature", action="append", default=[], help="record an optional package/feature for reproducibility; pass it to Cargo when building")
     parser.add_argument("--name", required=True)
     parser.add_argument("--destination", type=Path, required=True)
     args = parser.parse_args()

@@ -22,5 +22,6 @@
   ],
   "conflicts": [],
   "cargo_dependencies": {},
-  "manifests": {}
+  "manifests": {},
+  "kind": "development"
 }
