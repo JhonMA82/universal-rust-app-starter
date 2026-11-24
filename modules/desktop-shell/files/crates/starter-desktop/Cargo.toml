@@ -1,0 +1,16 @@
+[package]
+name = "starter-desktop"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+[dependencies]
+egui = { version = "0.37", features = ["default_fonts"] }
+egui_dock = "0.22"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+egui_kittest = "0.37"
+
+[features]
+visual-evidence = ["egui_kittest/wgpu", "egui_kittest/snapshot"]

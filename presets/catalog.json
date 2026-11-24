@@ -1,0 +1,6 @@
+{
+  "minimal": [],
+  "application": ["application-core", "engineering-tools"],
+  "workbench": ["application-core", "engineering-tools", "documents", "desktop-shell"],
+  "engineering": ["application-core", "engineering-tools", "documents", "desktop-shell", "tasks", "evaluation", "science", "canvas", "viewport"]
+}

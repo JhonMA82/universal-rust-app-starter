@@ -81,3 +81,10 @@ python3 tools/verify_templates.py --generate --cargo-check
 ## License
 
 Starter-authored code and files: MIT OR Apache-2.0. `LICENSE-MIT` and the complete Apache-2.0 text are included. Third-party libraries keep their respective licenses; verify your dependency tree for your distribution. Not a production security certification.
+
+## Modular starter v2 candidate
+
+The optional composer adds application, workbench and engineering presets
+while keeping the existing minimal profiles. See the
+[generator guide](docs/GENERATOR.md), [module catalog](docs/MODULE_CATALOG.md),
+[validation](docs/VALIDATION.md) and [migration](docs/MIGRATION_V2.md).

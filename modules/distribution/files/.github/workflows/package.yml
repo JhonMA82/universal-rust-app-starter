@@ -1,0 +1,30 @@
+name: Package generated app
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - id: profile
+        run: python -c 'import json,os; d=json.load(open("generation-report.json")); open(os.environ["GITHUB_OUTPUT"],"a").write("native="+str("native" in d["profile_targets"]).lower()+"\n")'
+      - if: runner.os == 'Linux' && steps.profile.outputs.native == 'true'
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev
+      - if: steps.profile.outputs.native == 'true'
+        run: python scripts/package_release.py
+      - if: steps.profile.outputs.native == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ runner.os }}
+          path: artifacts

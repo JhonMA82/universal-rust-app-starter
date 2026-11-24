@@ -1,0 +1,16 @@
+[package]
+name = "starter-demo-domain"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+[package.metadata.starter]
+layer = "domain"
+
+[dependencies]
+starter-core = { path = "../starter-core" }
+serde = { version = "1", features = ["derive"] }
+schemars = "1"
+starter-documents = { path = "../starter-documents" }
+starter-evaluation = { path = "../starter-evaluation" }
+starter-science = { path = "../starter-science" }

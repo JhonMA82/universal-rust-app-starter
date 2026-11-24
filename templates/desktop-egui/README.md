@@ -41,4 +41,4 @@ python3 tools/validate_toolkit.py
 python3 -m unittest discover -s tests -v
 ```
 
-Start with `.agents/skills/egui-reconstruction/SKILL.md` and read `docs/EGUI_VISUAL_FORGE.md`. The example under `examples/eframe-starter` is standalone and targets eframe 0.37; this workspace pins eframe/egui 0.36. Python tooling is optional for normal builds.
+Start with `.agents/skills/egui-reconstruction/SKILL.md` and read `docs/EGUI_VISUAL_FORGE.md`. The example under `examples/eframe-starter` is standalone and targets eframe 0.37; this workspace uses the same version. Python tooling is optional for normal builds.

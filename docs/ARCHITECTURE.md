@@ -20,3 +20,13 @@ Every generated app receives eight general skills plus profile skills. Canonical
 ## Why no defaults for databases/auth/distribution
 
 These vary too much between domains and can introduce remote dependencies and security assumptions. V1 favors a small base that compiles, with explicit optional extensions later.
+
+## Modular workspaces
+
+The [composer](GENERATOR.md) wraps the existing profiles with local modules.
+Reference domains physically separate business logic from egui and transport
+dependencies. The same typed operation registry handles desktop, CLI and
+local MCP. An optional Axum router accepts the same request objects and
+connects to the same application state. Document storage and external
+effects are infrastructure boundaries. The viewport has distinct scene,
+wgpu and egui crates. The data parser is separate from table presentation.

@@ -1,0 +1,61 @@
+{
+  "id": "desktop-shell",
+  "version": "0.1.0",
+  "description": "Accessible egui components, docking and shell preferences",
+  "dependencies": [],
+  "profiles": [
+    "desktop-egui",
+    "desktop-egui-web"
+  ],
+  "targets": [
+    "native",
+    "wasm"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "provenance": "Original starter code, see docs/SOURCES.md",
+  "documentation": "docs/modules/desktop-shell.md",
+  "files": [
+    "crates/starter-desktop/Cargo.toml",
+    "crates/starter-desktop/src/lib.rs",
+    "docs/modules/desktop-shell.md"
+  ],
+  "features": [
+    "starter-desktop/visual-evidence"
+  ],
+  "checks": [
+    "cargo test --workspace"
+  ],
+  "conflicts": [],
+  "cargo_dependencies": {
+    "crates/starter-desktop/Cargo.toml": {
+      "dependencies": {
+        "egui": {
+          "version": "0.37",
+          "features": [
+            "default_fonts"
+          ]
+        },
+        "egui_dock": "0.22",
+        "serde": {
+          "version": "1",
+          "features": [
+            "derive"
+          ]
+        }
+      },
+      "dev-dependencies": {
+        "egui_kittest": "0.37"
+      }
+    }
+  },
+  "manifests": {
+    "Cargo.toml": {
+      "workspace": {
+        "members": [
+          "crates/starter-desktop"
+        ],
+        "resolver": "3"
+      }
+    }
+  }
+}

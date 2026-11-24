@@ -1,0 +1,11 @@
+[package]
+name = "starter-data"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+[dependencies]
+starter-dataset = { path = "../starter-dataset" }
+egui = "0.37"
+egui_extras = "0.37"
+egui_plot = "0.38"

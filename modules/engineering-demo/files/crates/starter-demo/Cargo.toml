@@ -1,0 +1,18 @@
+[package]
+name = "starter-demo"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+[dependencies]
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "wgpu"] }
+starter-reference = { path = "../starter-reference" }
+starter-desktop = { path = "../starter-desktop" }
+starter-demo-domain = { path = "../starter-demo-domain" }
+serde_json = "1"
+starter-canvas = { path = "../starter-canvas" }
+starter-viewport-core = { path = "../starter-viewport-core" }
+starter-viewport-egui = { path = "../starter-viewport-egui" }
+
+[features]
+ui-inspection = ["starter-reference/ui-inspection"]

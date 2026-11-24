@@ -48,7 +48,7 @@ Do not alter the reference, resize either image, shift the candidate for the off
 
 ## Version note
 
-This profile pins `eframe`/`egui` **0.36** in the workspace `Cargo.toml`. The bundled example and the forge skills use **0.37** as their baseline. Confirm the pinned version's APIs before applying version-specific recipes, or upgrade the workspace deliberately and rerun the full checks. Do not mix APIs from different egui releases.
+This profile pins `eframe`/`egui` **0.37** in the workspace `Cargo.toml`. The bundled example and the forge skills use **0.37** as their baseline. Confirm the pinned version's APIs before applying version-specific recipes, or upgrade the workspace deliberately and rerun the full checks. Do not mix APIs from different egui releases.
 
 ## Verification boundary
 

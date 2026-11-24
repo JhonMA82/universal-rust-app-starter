@@ -1,0 +1,41 @@
+{
+  "id": "science",
+  "version": "0.1.0",
+  "description": "Unit-aware calculations and explicit numerical tolerances",
+  "dependencies": [],
+  "profiles": [],
+  "targets": [
+    "native",
+    "wasm"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "provenance": "Original starter code, see docs/SOURCES.md",
+  "documentation": "docs/modules/science.md",
+  "files": [
+    "crates/starter-science/Cargo.toml",
+    "crates/starter-science/src/lib.rs",
+    "docs/modules/science.md"
+  ],
+  "features": [],
+  "checks": [
+    "cargo test --workspace"
+  ],
+  "conflicts": [],
+  "cargo_dependencies": {
+    "crates/starter-science/Cargo.toml": {
+      "dependencies": {
+        "uom": "0.38"
+      }
+    }
+  },
+  "manifests": {
+    "Cargo.toml": {
+      "workspace": {
+        "members": [
+          "crates/starter-science"
+        ],
+        "resolver": "3"
+      }
+    }
+  }
+}

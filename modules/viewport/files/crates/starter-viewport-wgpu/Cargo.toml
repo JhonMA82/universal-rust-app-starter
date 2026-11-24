@@ -1,0 +1,17 @@
+[package]
+name = "starter-viewport-wgpu"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+[dependencies]
+wgpu = "30"
+starter-viewport-core = { path = "../starter-viewport-core" }
+bytemuck = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+pollster = "0.4"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[features]
+gpu-evidence = []

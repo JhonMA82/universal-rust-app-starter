@@ -1,0 +1,74 @@
+{
+  "id": "reference-runtime",
+  "version": "0.1.0",
+  "description": "Shared GUI, CLI and MCP reference entrypoints",
+  "dependencies": [
+    "desktop-shell@0.1.0",
+    "application-mcp@0.1.0",
+    "engineering-tools@0.1.0"
+  ],
+  "profiles": [
+    "desktop-egui"
+  ],
+  "targets": [
+    "native"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "provenance": "Original starter code, see docs/SOURCES.md",
+  "documentation": "docs/modules/reference-runtime.md",
+  "files": [
+    "crates/starter-reference/Cargo.toml",
+    "crates/starter-reference/src/lib.rs",
+    "docs/modules/reference-runtime.md"
+  ],
+  "features": [
+    "starter-reference/ui-inspection"
+  ],
+  "checks": [
+    "cargo test --workspace"
+  ],
+  "conflicts": [],
+  "cargo_dependencies": {
+    "crates/starter-reference/Cargo.toml": {
+      "dependencies": {
+        "eframe": {
+          "version": "0.37",
+          "default-features": false,
+          "features": [
+            "default_fonts",
+            "wgpu",
+            "accesskit",
+            "persistence"
+          ]
+        },
+        "starter-core": {
+          "path": "../starter-core"
+        },
+        "starter-desktop": {
+          "path": "../starter-desktop"
+        },
+        "starter-mcp": {
+          "path": "../starter-mcp"
+        },
+        "serde_json": "1",
+        "egui_inspection": {
+          "version": "0.37",
+          "features": [
+            "plugin"
+          ],
+          "optional": true
+        }
+      }
+    }
+  },
+  "manifests": {
+    "Cargo.toml": {
+      "workspace": {
+        "members": [
+          "crates/starter-reference"
+        ],
+        "resolver": "3"
+      }
+    }
+  }
+}

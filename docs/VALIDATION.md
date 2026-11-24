@@ -23,3 +23,18 @@ All templates expose canonical `.agents/skills` through a relative `.claude/skil
 - No end-to-end UI snapshots or live MCP handshakes can be attested from static tests or from the compile pass.
 - Dependency ranges are current-intent examples, not a replacement for a resolved `Cargo.lock`.
 - The complete Apache-2.0 and MIT text is bundled; replace copyright holders when you create your own project.
+
+## Modular validation
+
+```sh
+python3 -m unittest discover -s tests -v
+python3 tools/verify_templates.py --generate --cargo-check
+python3 tools/verify_composed.py --evidence evidence/references.json
+python3 tools/verify_composed.py --hybrid --evidence evidence/hybrid.json
+```
+
+Add `--visual` with a suitable wgpu adapter. The headless workflow captures
+the gallery interaction and viewport. To inspect a live app, enable the
+optional loopback UI bridge as documented in the reference runtime module.
+The report distinguishes process workflows and headless graphics from
+native-window and browser runs.

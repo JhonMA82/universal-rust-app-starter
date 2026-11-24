@@ -1,0 +1,26 @@
+{
+  "id": "distribution",
+  "version": "0.1.0",
+  "description": "Native and browser artifact packaging",
+  "dependencies": [],
+  "profiles": [],
+  "targets": [
+    "native",
+    "wasm"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "provenance": "Original starter code, see docs/SOURCES.md",
+  "documentation": "docs/modules/distribution.md",
+  "files": [
+    ".github/workflows/package.yml",
+    "docs/modules/distribution.md",
+    "scripts/package_release.py"
+  ],
+  "features": [],
+  "checks": [
+    "cargo test --workspace"
+  ],
+  "conflicts": [],
+  "cargo_dependencies": {},
+  "manifests": {}
+}

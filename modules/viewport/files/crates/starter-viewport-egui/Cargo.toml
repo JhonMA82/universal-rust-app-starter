@@ -1,0 +1,11 @@
+[package]
+name = "starter-viewport-egui"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+[dependencies]
+egui = "0.37"
+egui-wgpu = "0.37"
+starter-viewport-core = { path = "../starter-viewport-core" }
+starter-viewport-wgpu = { path = "../starter-viewport-wgpu" }

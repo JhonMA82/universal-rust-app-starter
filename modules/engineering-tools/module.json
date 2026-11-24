@@ -1,0 +1,43 @@
+{
+  "id": "engineering-tools",
+  "version": "0.1.0",
+  "description": "Cargo xtask, dependency gates and execution evidence",
+  "dependencies": [],
+  "profiles": [],
+  "targets": [
+    "native",
+    "wasm"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "provenance": "Original starter code, see docs/SOURCES.md",
+  "documentation": "docs/modules/engineering-tools.md",
+  "files": [
+    ".agents/skills/starter-verification/SKILL.md",
+    ".cargo/config.toml",
+    "crates/xtask/Cargo.toml",
+    "crates/xtask/src/main.rs",
+    "docs/modules/engineering-tools.md"
+  ],
+  "features": [],
+  "checks": [
+    "cargo test --workspace"
+  ],
+  "conflicts": [],
+  "cargo_dependencies": {
+    "crates/xtask/Cargo.toml": {
+      "dependencies": {
+        "serde_json": "1"
+      }
+    }
+  },
+  "manifests": {
+    "Cargo.toml": {
+      "workspace": {
+        "members": [
+          "crates/xtask"
+        ],
+        "resolver": "3"
+      }
+    }
+  }
+}

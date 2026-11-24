@@ -1,0 +1,58 @@
+{
+  "id": "documents",
+  "version": "0.1.0",
+  "description": "Document history, versioned formats and verified storage",
+  "dependencies": [],
+  "profiles": [],
+  "targets": [
+    "native",
+    "wasm"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "provenance": "Original starter code, see docs/SOURCES.md",
+  "documentation": "docs/modules/documents.md",
+  "files": [
+    "crates/starter-documents/Cargo.toml",
+    "crates/starter-documents/src/lib.rs",
+    "crates/starter-documents/src/storage.rs",
+    "docs/modules/documents.md"
+  ],
+  "features": [],
+  "checks": [
+    "cargo test --workspace"
+  ],
+  "conflicts": [],
+  "cargo_dependencies": {
+    "crates/starter-documents/Cargo.toml": {
+      "dependencies": {
+        "serde": {
+          "version": "1",
+          "features": [
+            "derive"
+          ]
+        },
+        "serde_json": "1",
+        "thiserror": "2"
+      },
+      "target": {
+        "cfg(not(target_arch = \"wasm32\"))": {
+          "dependencies": {
+            "fs2": "0.4",
+            "tempfile": "3",
+            "sha2": "0.10"
+          }
+        }
+      }
+    }
+  },
+  "manifests": {
+    "Cargo.toml": {
+      "workspace": {
+        "members": [
+          "crates/starter-documents"
+        ],
+        "resolver": "3"
+      }
+    }
+  }
+}

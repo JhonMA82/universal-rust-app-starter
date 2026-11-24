@@ -38,7 +38,7 @@ python3 tools/validate_toolkit.py
 python3 -m unittest discover -s tests -v
 ```
 
-The workspace pins eframe/egui 0.36 while the bundled example targets 0.37. Match the workspace version before applying version-specific APIs. Never claim visual fidelity without a real capture and comparison.
+The workspace and the bundled example use eframe/egui 0.37. Never claim visual fidelity without a real capture and comparison.
 
 ## Delivery
 

@@ -4,14 +4,18 @@
     "skills": [
       "rust-semver"
     ],
-    "kind": "native"
+    "targets": [
+      "native"
+    ]
   },
   "cli": {
     "desc": "Clap CLI with testable command logic",
     "skills": [
       "rust-cli"
     ],
-    "kind": "native"
+    "targets": [
+      "native"
+    ]
   },
   "desktop-egui": {
     "desc": "Native egui/eframe application with the Egui Visual Forge toolkit",
@@ -23,7 +27,9 @@
       "egui-runtime-verification",
       "egui-visual-optimization"
     ],
-    "kind": "native"
+    "targets": [
+      "native"
+    ]
   },
   "desktop-egui-web": {
     "desc": "Shared egui UI for native desktop and WASM/Trunk",
@@ -31,7 +37,11 @@
       "egui-visual-validation",
       "wasm-compatibility"
     ],
-    "kind": "egui-wasm"
+    "targets": [
+      "native",
+      "wasm"
+    ],
+    "wasm_package": "web"
   },
   "service-axum": {
     "desc": "Tokio + Axum HTTP API with /health",
@@ -39,7 +49,9 @@
       "async-rust",
       "rust-web-security"
     ],
-    "kind": "native"
+    "targets": [
+      "native"
+    ]
   },
   "mcp-stdio": {
     "desc": "rmcp stdio server with an echo tool",
@@ -47,7 +59,9 @@
       "async-rust",
       "mcp-protocol-validation"
     ],
-    "kind": "native"
+    "targets": [
+      "native"
+    ]
   },
   "mcp-http": {
     "desc": "rmcp Streamable HTTP server on localhost",
@@ -56,7 +70,9 @@
       "rust-web-security",
       "mcp-protocol-validation"
     ],
-    "kind": "native"
+    "targets": [
+      "native"
+    ]
   },
   "mcp-client": {
     "desc": "rmcp Streamable HTTP client",
@@ -64,14 +80,18 @@
       "async-rust",
       "mcp-protocol-validation"
     ],
-    "kind": "native"
+    "targets": [
+      "native"
+    ]
   },
   "web-leptos-csr": {
     "desc": "Leptos client-side WASM app with Trunk",
     "skills": [
       "wasm-compatibility"
     ],
-    "kind": "wasm"
+    "targets": [
+      "wasm"
+    ]
   },
   "web-leptos-fullstack": {
     "desc": "Leptos server-rendered UI on Axum (SSR baseline)",
@@ -79,13 +99,17 @@
       "async-rust",
       "rust-web-security"
     ],
-    "kind": "native"
+    "targets": [
+      "native"
+    ]
   },
   "web-dioxus": {
     "desc": "Dioxus web UI, run with dx",
     "skills": [
       "wasm-compatibility"
     ],
-    "kind": "wasm"
+    "targets": [
+      "wasm"
+    ]
   }
 }

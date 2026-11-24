@@ -1,0 +1,41 @@
+{
+  "id": "evaluation",
+  "version": "0.1.0",
+  "description": "Incremental evaluation graph",
+  "dependencies": [],
+  "profiles": [],
+  "targets": [
+    "native",
+    "wasm"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "provenance": "Original starter code, see docs/SOURCES.md",
+  "documentation": "docs/modules/evaluation.md",
+  "files": [
+    "crates/starter-evaluation/Cargo.toml",
+    "crates/starter-evaluation/src/lib.rs",
+    "docs/modules/evaluation.md"
+  ],
+  "features": [],
+  "checks": [
+    "cargo test --workspace"
+  ],
+  "conflicts": [],
+  "cargo_dependencies": {
+    "crates/starter-evaluation/Cargo.toml": {
+      "dependencies": {
+        "petgraph": "0.8"
+      }
+    }
+  },
+  "manifests": {
+    "Cargo.toml": {
+      "workspace": {
+        "members": [
+          "crates/starter-evaluation"
+        ],
+        "resolver": "3"
+      }
+    }
+  }
+}

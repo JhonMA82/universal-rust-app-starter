@@ -118,7 +118,7 @@ def check_templates() -> list[str]:
                 # Generator placeholder should not leak after simple text render.
                 if "{{project-name}}" in txt and "{{project-name}}" in RENDER.sub("smoke-project", txt):
                     errors.append(f"{name}: unrendered project-name in {f.relative_to(base)}")
-        if meta["kind"] == "wasm" and "wasm32-unknown-unknown" not in (base / ".github/workflows/ci.yml").read_text():
+        if "wasm" in meta["targets"] and "wasm32-unknown-unknown" not in (base / ".github/workflows/ci.yml").read_text():
             errors.append(f"{name}: missing wasm target in CI")
     return errors
 
@@ -147,9 +147,10 @@ def generate_and_check(cargo_check: bool) -> list[str]:
                 run([sys.executable, "scripts/check_agents.py"], generated)
                 if cargo_check:
                     run(["cargo", "fmt", "--all", "--", "--check"], generated)
-                    if meta["kind"] == "wasm":
-                        run(["cargo", "check", "--target", "wasm32-unknown-unknown"], generated)
-                    else:
+                    if "wasm" in meta["targets"]:
+                        package = ["-p", meta["wasm_package"]] if "wasm_package" in meta else []
+                        run(["cargo", "check", *package, "--target", "wasm32-unknown-unknown"], generated)
+                    if "native" in meta["targets"]:
                         run(["cargo", "check", "--workspace", "--all-targets"], generated)
                         run(["cargo", "test", "--workspace"], generated)
                 print(f"PASS generated {name}")

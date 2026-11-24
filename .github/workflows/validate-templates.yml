@@ -28,6 +28,6 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - name: Install cargo-generate
-        run: cargo install cargo-generate --locked
+        run: cargo install cargo-generate --version 0.26.0 --locked
       - name: Smoke test generated projects (Cargo + Rust toolchain)
         run: python3 tools/verify_templates.py --generate --cargo-check

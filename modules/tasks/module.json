@@ -1,0 +1,36 @@
+{
+  "id": "tasks",
+  "version": "0.1.0",
+  "description": "Bounded, cancellable native tasks",
+  "dependencies": [],
+  "profiles": [],
+  "targets": [
+    "native"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "provenance": "Original starter code, see docs/SOURCES.md",
+  "documentation": "docs/modules/tasks.md",
+  "files": [
+    "crates/starter-tasks/Cargo.toml",
+    "crates/starter-tasks/src/lib.rs",
+    "docs/modules/tasks.md"
+  ],
+  "features": [],
+  "checks": [
+    "cargo test --workspace"
+  ],
+  "conflicts": [],
+  "cargo_dependencies": {
+    "crates/starter-tasks/Cargo.toml": {}
+  },
+  "manifests": {
+    "Cargo.toml": {
+      "workspace": {
+        "members": [
+          "crates/starter-tasks"
+        ],
+        "resolver": "3"
+      }
+    }
+  }
+}

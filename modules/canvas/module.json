@@ -1,0 +1,44 @@
+{
+  "id": "canvas",
+  "version": "0.1.0",
+  "description": "2D transformations, pan, zoom, grid and selection",
+  "dependencies": [
+    "desktop-shell@0.1.0"
+  ],
+  "profiles": [
+    "desktop-egui"
+  ],
+  "targets": [
+    "native"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "provenance": "Original starter code, see docs/SOURCES.md",
+  "documentation": "docs/modules/canvas.md",
+  "files": [
+    "crates/starter-canvas/Cargo.toml",
+    "crates/starter-canvas/src/lib.rs",
+    "docs/modules/canvas.md"
+  ],
+  "features": [],
+  "checks": [
+    "cargo test --workspace"
+  ],
+  "conflicts": [],
+  "cargo_dependencies": {
+    "crates/starter-canvas/Cargo.toml": {
+      "dependencies": {
+        "egui": "0.37"
+      }
+    }
+  },
+  "manifests": {
+    "Cargo.toml": {
+      "workspace": {
+        "members": [
+          "crates/starter-canvas"
+        ],
+        "resolver": "3"
+      }
+    }
+  }
+}

@@ -16,4 +16,4 @@ python3 tools/validate_toolkit.py
 python3 -m unittest discover -s tests -v
 ```
 
-Start with `egui-reconstruction`; it delegates to the scene-analysis, UI-engineering, runtime-verification and optimization phases. The profile pins eframe/egui 0.36 while the forge example targets 0.37; match the workspace version before applying version-specific APIs.
+Start with `egui-reconstruction`; it delegates to the scene-analysis, UI-engineering, runtime-verification and optimization phases. The profile and the Forge example use eframe/egui 0.37.

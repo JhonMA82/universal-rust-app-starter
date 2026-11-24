@@ -1,0 +1,58 @@
+{
+  "id": "data",
+  "version": "0.1.0",
+  "description": "Bounded CSV data, virtualization and plots",
+  "dependencies": [
+    "desktop-shell@0.1.0",
+    "tasks@0.1.0"
+  ],
+  "profiles": [
+    "desktop-egui"
+  ],
+  "targets": [
+    "native"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "provenance": "Original starter code, see docs/SOURCES.md",
+  "documentation": "docs/modules/data.md",
+  "files": [
+    "crates/starter-data/Cargo.toml",
+    "crates/starter-data/src/lib.rs",
+    "crates/starter-dataset/Cargo.toml",
+    "crates/starter-dataset/src/lib.rs",
+    "docs/modules/data.md"
+  ],
+  "features": [],
+  "checks": [
+    "cargo test --workspace"
+  ],
+  "conflicts": [],
+  "cargo_dependencies": {
+    "crates/starter-data/Cargo.toml": {
+      "dependencies": {
+        "starter-dataset": {
+          "path": "../starter-dataset"
+        },
+        "egui": "0.37",
+        "egui_extras": "0.37",
+        "egui_plot": "0.38"
+      }
+    },
+    "crates/starter-dataset/Cargo.toml": {
+      "dependencies": {
+        "csv": "1.4"
+      }
+    }
+  },
+  "manifests": {
+    "Cargo.toml": {
+      "workspace": {
+        "members": [
+          "crates/starter-data",
+          "crates/starter-dataset"
+        ],
+        "resolver": "3"
+      }
+    }
+  }
+}

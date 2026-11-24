@@ -1,0 +1,89 @@
+{
+  "id": "viewport",
+  "version": "0.1.0",
+  "description": "3D scene, wgpu rendering and egui input",
+  "dependencies": [
+    "desktop-shell@0.1.0"
+  ],
+  "profiles": [
+    "desktop-egui"
+  ],
+  "targets": [
+    "native"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "provenance": "Original starter code, see docs/SOURCES.md",
+  "documentation": "docs/modules/viewport.md",
+  "files": [
+    "crates/starter-viewport-core/Cargo.toml",
+    "crates/starter-viewport-core/src/lib.rs",
+    "crates/starter-viewport-egui/Cargo.toml",
+    "crates/starter-viewport-egui/src/lib.rs",
+    "crates/starter-viewport-wgpu/Cargo.toml",
+    "crates/starter-viewport-wgpu/src/lib.rs",
+    "crates/starter-viewport-wgpu/src/scene.wgsl",
+    "docs/modules/viewport.md"
+  ],
+  "features": [
+    "starter-viewport-wgpu/gpu-evidence"
+  ],
+  "checks": [
+    "cargo test --workspace"
+  ],
+  "conflicts": [],
+  "cargo_dependencies": {
+    "crates/starter-viewport-core/Cargo.toml": {
+      "dependencies": {
+        "glam": "0.32"
+      }
+    },
+    "crates/starter-viewport-egui/Cargo.toml": {
+      "dependencies": {
+        "egui": "0.37",
+        "egui-wgpu": "0.37",
+        "starter-viewport-core": {
+          "path": "../starter-viewport-core"
+        },
+        "starter-viewport-wgpu": {
+          "path": "../starter-viewport-wgpu"
+        }
+      }
+    },
+    "crates/starter-viewport-wgpu/Cargo.toml": {
+      "dependencies": {
+        "wgpu": "30",
+        "starter-viewport-core": {
+          "path": "../starter-viewport-core"
+        },
+        "bytemuck": {
+          "version": "1",
+          "features": [
+            "derive"
+          ]
+        }
+      },
+      "dev-dependencies": {
+        "pollster": "0.4",
+        "image": {
+          "version": "0.25",
+          "default-features": false,
+          "features": [
+            "png"
+          ]
+        }
+      }
+    }
+  },
+  "manifests": {
+    "Cargo.toml": {
+      "workspace": {
+        "members": [
+          "crates/starter-viewport-core",
+          "crates/starter-viewport-egui",
+          "crates/starter-viewport-wgpu"
+        ],
+        "resolver": "3"
+      }
+    }
+  }
+}

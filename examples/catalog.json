@@ -1,0 +1,5 @@
+{
+  "document-workbench": {"profile": "desktop-egui", "preset": "workbench", "modules": ["document-demo"]},
+  "data-explorer": {"profile": "desktop-egui", "preset": "application", "modules": ["data-demo"]},
+  "engineering-workbench": {"profile": "desktop-egui", "preset": "engineering", "modules": ["engineering-demo"]}
+}

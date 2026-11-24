@@ -1,0 +1,16 @@
+[package]
+name = "starter-reference"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+[dependencies]
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "wgpu", "accesskit", "persistence"] }
+starter-core = { path = "../starter-core" }
+starter-desktop = { path = "../starter-desktop" }
+starter-mcp = { path = "../starter-mcp" }
+serde_json = "1"
+egui_inspection = { version = "0.37", features = ["plugin"], optional = true }
+
+[features]
+ui-inspection = ["dep:egui_inspection"]
