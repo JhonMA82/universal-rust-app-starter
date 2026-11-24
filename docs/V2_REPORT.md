@@ -2,7 +2,8 @@
 
 El parche se reconstruyó desde `ada50a578dd1535e47e61127a4a2f14f43b3191c`.
 La versión previa vivía en un entorno temporal y su copia no está disponible.
-Este parche tiene su propio historial y sus propias evidencias.
+Este parche tiene su propio historial; sus evidencias se regeneran con los
+comandos de [validación](VALIDATION.md) y los artefactos de CI.
 
 ## Contenido
 
@@ -22,12 +23,15 @@ Consultar [la guía del generador](GENERATOR.md), [el catálogo](MODULE_CATALOG.
 
 ## Verificación
 
-Las evidencias de esta reconstrucción acompañan al parche. Los once perfiles
-pasaron la generación real y las comprobaciones de Cargo en Linux, con WASM
-para las entradas correspondientes. El workspace híbrido compuesto también
-pasó sus pruebas nativas y su compilación WASM. Las capturas de galería y
-viewport provienen de wgpu offscreen y no representan una sesión de ventana
-nativa. El paquete CLI Linux incluye licencias, inventario y checksum verificado.
+Este repositorio no versiona las evidencias. Los comandos de
+[VALIDATION.md](VALIDATION.md) las regeneran; `validate-modules.yml` produce y
+sube las evidencias de composición, mientras `validate-templates.yml` valida los
+once perfiles sin publicar artefactos. La ejecución de la reconstrucción
+registró: los once perfiles generados y comprobados con Cargo en Linux, con WASM
+para las entradas correspondientes; el workspace híbrido con pruebas nativas y
+compilación WASM; capturas de galería y viewport desde wgpu offscreen —no una
+sesión de ventana nativa— y un paquete CLI Linux con licencias, inventario y
+checksum, generado por el workflow manual del módulo `distribution`.
 
 El candidato aún requiere validación en modo ventana, navegador y sesión viva
 del puente gráfico, además de la matriz de ejecución en Windows y macOS.

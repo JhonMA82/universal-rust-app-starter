@@ -12,7 +12,7 @@ Vendored from **egui-visual-forge v1.1** (MIT; see `LICENSE-EGUI-VISUAL-FORGE`).
 | `egui-runtime-verification` | Deterministic captures, `egui_kittest`, optional AccessKit/`egui_mcp` |
 | `egui-visual-optimization` | Region-level comparison and hypothesis-driven iteration |
 
-Skill sources live in `.agents/skills/`; `.claude/skills/` is a byte-identical mirror. Only load the skill needed for the current phase.
+Skill sources live in `.agents/skills/`; `.claude/skills/` is a relative symlink to `../.agents/skills`. Only load the skill needed for the current phase.
 
 ## Bundled tooling
 

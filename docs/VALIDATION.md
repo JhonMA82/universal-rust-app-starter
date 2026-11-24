@@ -1,4 +1,4 @@
-# Validation status (v1.0.0 + unreleased fixes)
+# Validation status (v1.0.0 + modular v2 candidate)
 
 Static audits prove TOML structure, placeholders, instruction completeness and file parity offline. They cannot prove crate APIs, framework integration, native linking, browser execution or MCP handshake. On 2026-11-14 all eleven profiles were also generated and compiled with a real toolchain (Rust 1.100.0, cargo-generate 0.26.0, `wasm32-unknown-unknown`): 11 PASS, 0 FAIL, 0 SKIP — see `VALIDATION-REPORT.md`. GUI runners, browser builds and live MCP handshakes are still unverified.
 

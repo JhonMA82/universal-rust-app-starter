@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add the optional modular v2 candidate: `generator/compose.py` composes the existing Cargo Generate profiles with 17 versioned modules and four presets (`minimal`, `application`, `workbench`, `engineering`), plus three autonomous reference projects (Document Workbench, Data Explorer, Engineering Workbench).
+- Add `validate-modules.yml` to generate, test and lint the composed references in CI; distribution stays opt-in through the `distribution` module and its manual workflow.
+- Document the modular workflow in `docs/GENERATOR.md`, `docs/MODULE_CATALOG.md`, `docs/V2_REPORT.md`, `docs/MIGRATION_V2.md`, `docs/SOURCES.md`, `docs/KNOWN_LIMITATIONS.md` and `docs/VALIDATION.md`.
 - Install the MIT-licensed Egui Visual Forge v1.1 toolkit in `desktop-egui`: five `egui-*` skills (canonical in `.agents/skills`, exposed through the Claude symlink), Python scene/comparison tools, scene-format docs, an eframe starter example and toolkit tests.
 - Harden the `desktop-egui` generator config to ignore Python caches and skip Liquid parsing of Python/requirements files.
 - Replace duplicated `.claude/skills` copies with relative symlinks to canonical `.agents/skills`; generated projects recreate the link in `scripts/check_agents.py`.

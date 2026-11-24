@@ -30,7 +30,8 @@ This directory includes no third-party proprietary assets, fonts, logos or icons
 - Official egui/eframe/egui-wgpu/egui_inspection/egui_kittest 0.37, egui_dock 0.22,
   egui_plot 0.38 and wgpu 30 from crates.io. Their original notices apply.
   Default egui fonts have additional notices copied by the packaging helper.
-- Official rmcp 3.11 for MCP. Axum 0.8 for HTTP, petgraph 0.8 for graph algorithms
+- Official rmcp 3.11 for the modular reference (the base MCP templates pin 3.10).
+  Axum 0.8 for HTTP, petgraph 0.8 for graph algorithms
   and uom 0.38 for dimensions. Cargo Generate 0.26.0 renders base templates,
   and tomli-w 1.2.0 emits composed TOML.
 
