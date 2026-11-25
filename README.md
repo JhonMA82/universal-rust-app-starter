@@ -59,7 +59,7 @@ cargo test
 To generate the original desktop profile directly from GitHub:
 
 ```sh
-cargo generate --git https://github.com/JhonMA82/universal-rust-app-starter --template-path templates/desktop-egui --name my-desktop-app
+cargo generate --git https://github.com/JhonMA82/universal-rust-app-starter templates/desktop-egui --name my-desktop-app
 ```
 
 For a locally unpacked source, execute `cargo generate --path templates/<profile> --name <app-name>` in a parent directory other than the template itself. See each profile README for dependencies and commands.
