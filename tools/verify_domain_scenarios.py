@@ -162,6 +162,23 @@ def document_extension(project):
     return []
 
 
+def inspection_extension(_project):
+    """Exercise the product's registered format through the generated binary."""
+    return [(
+        "inspection.edit",
+        {
+            "report": {
+                "reference": "INS-42",
+                "site": "Bridge 7",
+                "checks": [{"label": "Guardrail", "passed": True, "note": "Verified"}],
+            },
+            "if_revision": 0,
+        },
+        None,
+        {"reference": "INS-42", "site": "Bridge 7", "passed": 1, "total": 1, "revision": 1},
+    )]
+
+
 def data_extension(project):
     name = "crates/starter-demo-domain/src/lib.rs"
     edit(project, name, "    pub mean: Option<f64>,", "    pub mean: Option<f64>,\n    pub peak: Option<f64>,")
@@ -206,6 +223,7 @@ def engineering_extension(project):
 SCENARIOS = {
     "desktop": ("desktop-application", [], ["ui_app", "starter-desktop", "starter-tasks"], desktop_extension),
     "documents": ("document-workbench", [], ["starter-demo", "starter-documents"], document_extension),
+    "inspection": ("inspection-workbench", [], ["starter-demo", "starter-inspection"], inspection_extension),
     "data": ("data-workbench", ["automation"], ["starter-demo", "starter-tasks", "starter-data"], data_extension),
     "engineering": ("engineering-workbench", ["automation"], ["starter-demo-domain", "starter-viewport-core", "starter-evaluation"], engineering_extension),
 }

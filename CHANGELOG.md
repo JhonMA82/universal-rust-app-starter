@@ -2,6 +2,9 @@
 
 ## Unreleased stabilization
 
+- Add `inspection-workbench`: a product-owned document format on the typed
+  `Document<T>` session, with reusable `Recovery`, autosave and recovery in
+  `starter-documents`.
 - Manage the `desktop-egui` Visual Forge Python tooling with `uv`:
   `pyproject.toml` replaces `requirements.txt`, the egui skills and profile
   docs use `uv sync` / `uv run`, and the native CI verifier runs through the

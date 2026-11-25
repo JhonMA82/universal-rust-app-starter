@@ -46,7 +46,7 @@ def plan(request):
         if "profiles" in capability and profile not in capability["profiles"]:
             raise compose.CompositionError(f"{name} is incompatible with {profile}")
         requested.extend(capability["modules"])
-    views = set(capabilities).intersection({"documents", "data-visualization", "engineering-views"})
+    views = set(capabilities).intersection({"documents", "inspection-reports", "data-visualization", "engineering-views"})
     if preset in {"workbench", "engineering"}:
         views.add("documents" if preset == "workbench" else "engineering-views")
     if len(views) > 1:
@@ -55,13 +55,13 @@ def plan(request):
             "requested": sorted(set(requested)), "targets": request.get("targets", []),
             "features": request.get("features", [])}
     descriptor, targets, modules, ordered, features = compose.resolve_configuration(**spec)
-    expected_workspace = {"data-visualization": "data-demo", "engineering-views": "engineering-demo"}
+    expected_workspace = {"inspection-reports": "inspection-demo", "data-visualization": "data-demo", "engineering-views": "engineering-demo"}
     if profile == "desktop-egui":
         expected_workspace["documents"] = "document-demo"
     for capability, provider in expected_workspace.items():
         if capability in views and provider not in ordered:
             raise compose.CompositionError(f"{capability} requires the {provider} workspace")
-    providers = frozenset(ordered).intersection({"desktop-product", "document-demo", "data-demo", "engineering-demo"})
+    providers = frozenset(ordered).intersection({"desktop-product", "document-demo", "inspection-demo", "data-demo", "engineering-demo"})
     external = {}
     crates = set()
     manifests = {

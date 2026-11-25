@@ -1,6 +1,7 @@
 {
   "desktop-application": {"profile":"desktop-egui","preset":"application","capabilities":["background-work"],"description":"Desktop shell, reusable UI, command palette, task controls and application-owned domain"},
   "document-workbench": {"profile":"desktop-egui","preset":"workbench","capabilities":[],"description":"Editor with document history, recovery, save and reopen"},
+  "inspection-workbench": {"profile":"desktop-egui","preset":"application","capabilities":["inspection-reports"],"description":"Inspection report with typed storage, autosave and recovery"},
   "data-workbench": {"profile":"desktop-egui","preset":"application","capabilities":["data-visualization"],"description":"CSV import, sorting, table, charts, filtering and export"},
   "engineering-workbench": {"profile":"desktop-egui","preset":"engineering","capabilities":[],"description":"Parametric workspace with a 2D canvas and 3D viewport"}
 }

@@ -2,6 +2,7 @@
   "operations": {"modules":["application-core"],"description":"Typed domain operations, revisions and permissions"},
   "desktop-ui": {"modules":["desktop-shell"],"description":"Desktop shell, component gallery, docking and preferences"},
   "documents": {"modules":["documents"],"profiles":["desktop-egui","desktop-egui-web"],"description":"Notes editor and document history","limitations":["Desktop includes save and recovery. Browser notes use in-memory storage."]},
+  "inspection-reports": {"modules":["inspection-demo"],"profiles":["desktop-egui"],"description":"Inspection reports with a typed format, autosave and recovery","limitations":["Native desktop only. One report is open at a time."]},
   "background-work": {"modules":["tasks","desktop-shell"],"profiles":["desktop-egui"],"description":"Native tasks with progress, cancellation and revision-aware results"},
   "data-visualization": {"modules":["data"],"description":"Data workspace with CSV import/export, plot and table"},
   "engineering-views": {"modules":["canvas","viewport"],"description":"Integrated 2D and 3D engineering workspace"},

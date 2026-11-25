@@ -62,6 +62,21 @@ class ProductPlanTests(unittest.TestCase):
                 with self.assertRaises(CompositionError):
                     starter.plan(request)
 
+    def test_inspection_product_uses_the_typed_document_session(self):
+        plan = starter.plan({"product": "inspection-workbench", "name": "inspection"})
+        self.assertEqual(plan["providers"], ["inspection-demo"])
+        self.assertIn("inspection-reports", plan["capabilities"])
+        self.assertIn("documents", plan["modules"])
+        self.assertIn("starter-inspection", plan["crates"])
+        self.assertIn("desktop", plan["entrypoints"])
+        self.assertIn("Native desktop only", " ".join(plan["limits"]))
+
+    def test_inspection_workspace_cannot_be_combined(self):
+        for capability in ("documents", "data-visualization", "engineering-views"):
+            with self.subTest(capability=capability):
+                with self.assertRaisesRegex(CompositionError, "one integrated workspace"):
+                    starter.plan({"product": "inspection-workbench", "capabilities": [capability]})
+
     def test_plans_cover_all_existing_profiles_and_baseline_presets(self):
         for profile in starter.PROFILES:
             for preset in ("minimal", "application"):

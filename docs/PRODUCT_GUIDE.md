@@ -9,6 +9,7 @@ Extra capabilities are resolved using the same composer as
 | --- | --- | --- |
 | `desktop-application` | Workspace settings, docking, component gallery, palette and a task panel | `crates/app/src/domain.rs`, then `crates/app/src/view.rs` |
 | `document-workbench` | Notes, undo/redo, persistence and recovery | `crates/starter-notes/src/lib.rs` for model and format |
+| `inspection-workbench` | Inspection report with a typed format, autosave and recovery | `crates/starter-inspection/src/lib.rs` for format and operations |
 | `data-workbench` | CSV import/export, table, filter, charts and background work | `crates/starter-demo-domain/src/lib.rs` for operations |
 | `engineering-workbench` | Parameters, units, canvas, 3D viewport, history and calculation task | `crates/starter-demo-domain/src/lib.rs` for the model |
 
@@ -38,8 +39,8 @@ uv run --with-requirements generator/requirements.txt python starter.py doctor -
 uv run --with-requirements generator/requirements.txt python starter.py create --config project-plan.json --verify
 ```
 
-A native desktop app can switch from the general view to a data or document
-workspace by enabling the corresponding capability. The CLI rejects a request
+A native desktop app can switch from the general view to a data, document or
+inspection workspace by enabling the corresponding capability. The CLI rejects a request
 that combines competing ready-made views. The scientific computation capability
 adds libraries. Pair it with `engineering-views` for a complete editor.
 The browser-only parts of a hybrid profile still use web-compatible modules

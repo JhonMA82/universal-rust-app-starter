@@ -1,0 +1,98 @@
+{
+  "id": "inspection-demo",
+  "version": "0.1.0",
+  "description": "Inspection Workbench reference built on the typed document session",
+  "dependencies": [
+    "documents@0.1.0",
+    "reference-runtime@0.1.0"
+  ],
+  "profiles": [
+    "desktop-egui"
+  ],
+  "targets": [
+    "native"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "provenance": "Original starter code, see docs/SOURCES.md",
+  "documentation": "docs/modules/inspection-demo.md",
+  "files": [
+    "crates/starter-inspection/Cargo.toml",
+    "crates/starter-inspection/src/lib.rs",
+    "crates/starter-demo/Cargo.toml",
+    "crates/starter-demo/src/lib.rs",
+    "docs/modules/inspection-demo.md"
+  ],
+  "features": [
+    "starter-demo/ui-inspection"
+  ],
+  "checks": [
+    "cargo test --workspace"
+  ],
+  "conflicts": [
+    "data-demo",
+    "desktop-product",
+    "document-demo",
+    "engineering-demo"
+  ],
+  "cargo_dependencies": {
+    "crates/starter-inspection/Cargo.toml": {
+      "dependencies": {
+        "starter-core": {
+          "path": "../starter-core"
+        },
+        "starter-documents": {
+          "path": "../starter-documents"
+        },
+        "serde": {
+          "version": "1",
+          "features": [
+            "derive"
+          ]
+        },
+        "serde_json": "1",
+        "schemars": "1"
+      }
+    },
+    "crates/starter-demo/Cargo.toml": {
+      "dependencies": {
+        "eframe": {
+          "version": "0.37",
+          "default-features": false,
+          "features": [
+            "default_fonts",
+            "wgpu"
+          ]
+        },
+        "starter-reference": {
+          "path": "../starter-reference"
+        },
+        "starter-desktop": {
+          "path": "../starter-desktop"
+        },
+        "starter-documents": {
+          "path": "../starter-documents"
+        },
+        "starter-inspection": {
+          "path": "../starter-inspection"
+        },
+        "serde_json": "1"
+      },
+      "dev-dependencies": {
+        "tempfile": "3"
+      }
+    }
+  },
+  "manifests": {
+    "Cargo.toml": {
+      "workspace": {
+        "members": [
+          "crates/starter-demo",
+          "crates/starter-inspection"
+        ],
+        "resolver": "3"
+      }
+    }
+  },
+  "provider": "desktop-view",
+  "kind": "desktop-provider"
+}
