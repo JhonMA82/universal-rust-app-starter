@@ -190,8 +190,18 @@ def resolve_configuration(profile, preset, name, requested=(), targets=(), featu
     if not selected_targets <= valid_targets:
         raise CompositionError(f"incompatible targets: {sorted(selected_targets)}")
     modules = catalog()
+    explicit_modules = {module.partition("@")[0] for module in requested}
     requested = [*presets[preset], *requested]
     ordered = resolve(modules, requested, profile, valid_targets)
+    if profile == "desktop-egui":
+        views = {
+            *({"document-demo"} if preset == "workbench" or "documents" in explicit_modules else ()),
+            *({"data-demo"} if "data" in ordered else ()),
+            *({"engineering-demo"} if preset == "engineering" or {"canvas", "viewport"} <= set(ordered) else ()),
+            *(module for module in ordered if modules[module].get("provider") == "desktop-view"),
+        }
+        if len(views) > 1:
+            raise CompositionError("choose one integrated workspace: " + ", ".join(sorted(views)))
     while needed := integration.plan(profile, preset, ordered, modules):
         requested.extend(sorted(needed))
         ordered = resolve(modules, requested, profile, valid_targets)
@@ -200,6 +210,13 @@ def resolve_configuration(profile, preset, name, requested=(), targets=(), featu
         declared_features.add("desktop/ui-inspection")
     if set(features) - declared_features:
         raise CompositionError(f"unsupported features: {sorted(set(features)-declared_features)}")
+
+    native_features = {
+        "desktop/ui-inspection", "starter-demo/ui-inspection", "starter-reference/ui-inspection",
+        "starter-desktop/visual-evidence", "starter-viewport-wgpu/gpu-evidence",
+    }
+    if "native" not in selected_targets and (invalid := native_features.intersection(features)):
+        raise CompositionError(f"features require native verification: {sorted(invalid)}")
 
     integration.entrypoints(profile, ordered, modules)
     return profiles[profile], sorted(selected_targets), modules, ordered, declared_features

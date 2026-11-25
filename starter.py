@@ -106,7 +106,7 @@ def plan(request):
         "crates": sorted(crates), "declared_dependency_constraints": {
             name: sorted(versions) for name, versions in sorted(external.items())
         },
-        "features": sorted(features), "entrypoints": integration.entrypoints(profile, ordered, modules),
+        "features": sorted(set(spec["features"])), "available_features": sorted(features), "entrypoints": integration.entrypoints(profile, ordered, modules),
         "requirements": ["Python 3.11+", "tomli-w", "Rust", "cargo-generate", "rustfmt"],
         "limits": [limit for name in included for limit in CAPABILITIES[name].get("limitations", [])],
     }

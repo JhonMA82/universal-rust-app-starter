@@ -38,6 +38,20 @@ class ProductPlanTests(unittest.TestCase):
         with self.assertRaisesRegex(CompositionError, "incompatible"):
             starter.plan({"profile": "desktop-egui-web", "targets": ["native"], "capabilities": ["background-work"]})
 
+    def test_explicit_modules_cannot_silently_replace_another_workspace(self):
+        with self.assertRaisesRegex(CompositionError, "one integrated workspace"):
+            starter.plan({"profile": "desktop-egui", "modules": ["documents@0.1.0", "data"]})
+
+    def test_native_features_are_distinct_from_selected_features(self):
+        request = {"profile": "desktop-egui-web", "preset": "application"}
+        feature = "desktop/ui-inspection"
+        plan = starter.plan(request)
+        self.assertIn(feature, plan["available_features"])
+        self.assertEqual(plan["features"], [])
+        self.assertEqual(starter.plan(request | {"features": [feature]})["features"], [feature])
+        with self.assertRaisesRegex(CompositionError, "require native"):
+            starter.plan(request | {"targets": ["wasm"], "features": [feature]})
+
     def test_unknown_ids_and_invalid_config_types_are_rejected(self):
         for request in (
             {"product": "unknown"},
