@@ -8,7 +8,7 @@ compositor's Minimal preset. Application connects the typed operation registry.
 | `library` | Native | Public operations API | Doctest |
 | `cli` | Native | Operation CLI, optional MCP stdio | Greeting and operation process |
 | `desktop-egui` | Native | Egui settings workspace and operation CLI, optional MCP | Operation process and reference window smoke |
-| `desktop-egui-web` | Native, WASM | Shared settings UI or Workbench notes | Native tests, WASM check and browser interaction |
+| `desktop-egui-web` | Native, WASM | Shared settings UI or Workbench notes | Native wgpu tests, WASM check and WebGL browser interaction |
 | `service-axum` | Native | Authenticated application operations beside `/health` | Process with HTTP requests |
 | `mcp-stdio` | Native | Operation server over stdio | Handshake, tool discovery and invocation |
 | `mcp-http` | Native | Operation server over local Streamable HTTP | Handshake, tool discovery and invocation |

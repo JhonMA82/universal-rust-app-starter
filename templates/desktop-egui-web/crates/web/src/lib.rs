@@ -16,7 +16,10 @@ pub fn start() {
         eframe::WebRunner::new()
             .start(
                 canvas,
-                eframe::WebOptions::default(),
+                eframe::WebOptions {
+                    renderer: eframe::Renderer::Glow,
+                    ..Default::default()
+                },
                 Box::new(|cc| Ok(Box::new(ui_app::TemplateApp::new(cc)))),
             )
             .await

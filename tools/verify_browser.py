@@ -93,7 +93,7 @@ def main():
         report["toolchain"] = subprocess.check_output(["rustc", "-vV"], text=True).strip()
         with tempfile.TemporaryDirectory() as temp, sync_playwright() as playwright:
             browser = playwright.chromium.launch(executable_path=args.chromium, args=[
-                "--enable-unsafe-webgpu", "--enable-unsafe-swiftshader", "--use-angle=swiftshader",
+                "--enable-unsafe-swiftshader", "--use-angle=swiftshader",
             ])
             report["browser"] = browser.version
             try:

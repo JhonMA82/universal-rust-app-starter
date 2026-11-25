@@ -33,8 +33,7 @@ Prefer modifying `crates/app` rather than platform runners for shared UI behavio
 ```sh
 rustup target add wasm32-unknown-unknown
 cargo install trunk --locked
-cd crates/web
 trunk serve
 trunk build --release
 ```
-Desktop and Web share `crates/app`. Trunk serves on `http://127.0.0.1:8080`.
+Desktop and Web share `crates/app`. The native runner uses wgpu, and the browser runner uses egui Glow with WebGL. Trunk serves on `http://127.0.0.1:8080`.

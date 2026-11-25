@@ -6,6 +6,7 @@
 - Validate Cargo features and document only the composed entrypoints.
 - Verify Minimal and Application across all profiles and drive Leptos, Dioxus
   and hybrid egui interactions in Chromium.
+- Use the egui Glow backend on the web to support WebGL presentation while retaining wgpu on desktop.
 - Supply the X11 keyboard runtime for native window CI and compare native
   captures with Visual Forge.
 - Reconcile duplicated floating/docked panels and evaluate command palette
