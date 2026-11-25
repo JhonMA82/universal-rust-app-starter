@@ -42,7 +42,7 @@ def desktop_extension(project):
 
 CHECKLIST = r'''
 use eframe::egui;
-use starter_documents::{Envelope, Error, Format, History, storage::{self, Checksum}};
+use starter_documents::{Error, Format, storage::Document};
 use std::path::Path;
 
 type Checklist = Vec<(String, bool)>;
@@ -61,72 +61,56 @@ const FORMAT: Format<Checklist> = Format {
 };
 
 pub struct Editor {
-    history: History<Checklist>,
-    checksum: Option<Checksum>,
+    document: Document<Checklist>,
     message: String,
 }
 
 impl Default for Editor {
     fn default() -> Self {
-        Self { history: History::new(vec![("Confirm requirements".into(), false)], 32), checksum: None, message: String::new() }
+        Self {
+            document: Document::new(FORMAT, vec![("Confirm requirements".into(), false)], 32).unwrap(),
+            message: String::new(),
+        }
     }
 }
 
 impl Editor {
     pub fn show(&mut self, ui: &mut egui::Ui) {
         ui.heading("Product checklist");
-        let mut candidate = self.history.value().clone();
+        let mut candidate = self.document.history().value().clone();
         let mut changed = false;
         for (label, checked) in &mut candidate {
             changed |= ui.checkbox(checked, label.as_str()).changed();
         }
         if changed {
-            self.message = match self.history.replace(candidate, FORMAT.validate) {
+            self.message = match self.document.replace(candidate) {
                 Ok(_) => "Edit committed".into(),
                 Err(error) => error.to_string(),
             };
         }
         if ui.button("Undo checklist change").clicked() {
-            self.message = match self.history.undo() {
+            self.message = match self.document.undo() {
                 Ok(_) => "Undo complete".into(),
                 Err(error) => error.to_string(),
             };
         }
         let path = Path::new("product-checklist.json");
         if ui.button("Save product-checklist.json").clicked() {
-            self.message = match self.save(path) {
-                Ok(()) => "Checklist saved".into(),
+            self.message = match self.document.save(path) {
+                Ok(_) => "Checklist saved".into(),
                 Err(error) => error.to_string(),
             };
         }
         if ui.button("Reopen product-checklist.json").clicked() {
-            self.message = match self.open(path) {
-                Ok(()) => "Checklist opened".into(),
+            self.message = match Document::open(FORMAT, path, 32) {
+                Ok(document) => {
+                    self.document = document;
+                    "Checklist opened".into()
+                },
                 Err(error) => error.to_string(),
             };
         }
         starter_desktop::notice(ui, &self.message, starter_desktop::Tone::Normal);
-    }
-
-    fn save(&mut self, path: &Path) -> Result<(), Error> {
-        let snapshot = self.history.snapshot();
-        let value = Envelope {
-            format: FORMAT.id.into(),
-            version: FORMAT.version,
-            revision: self.history.revision(),
-            content: (*snapshot).clone(),
-            extra: Default::default(),
-        };
-        self.checksum = Some(storage::save(path, &FORMAT, &value, self.checksum)?.checksum);
-        self.history.mark_saved(snapshot);
-        Ok(())
-    }
-
-    fn open(&mut self, path: &Path) -> Result<(), Error> {
-        let (doc, checksum) = storage::open(path, &FORMAT)?;
-        self.history = History::new(doc.content, 32);
-        self.checksum = Some(checksum);
-        Ok(())
     }
 }
 
@@ -140,16 +124,15 @@ mod tests {
         let path = project.path().join("product-checklist.json");
         let mut editor = Editor::default();
         let done = vec![("Confirm requirements".to_owned(), true)];
-        editor.history.replace(done.clone(), FORMAT.validate).unwrap();
-        assert!(editor.history.undo().unwrap());
-        assert!(!editor.history.value()[0].1);
-        assert!(editor.history.redo().unwrap());
-        editor.save(&path).unwrap();
-        assert!(!editor.history.dirty());
-        let mut reopened = Editor::default();
-        reopened.open(&path).unwrap();
-        assert_eq!(reopened.history.value(), &done);
-        assert!(matches!(Editor::default().save(&path), Err(Error::Conflict)));
+        editor.document.replace(done.clone()).unwrap();
+        assert!(editor.document.undo().unwrap());
+        assert!(!editor.document.history().value()[0].1);
+        assert!(editor.document.redo().unwrap());
+        editor.document.save(&path).unwrap();
+        assert!(!editor.document.history().dirty());
+        let reopened = Document::open(FORMAT, &path, 32).unwrap();
+        assert_eq!(reopened.history().value(), &done);
+        assert!(matches!(Editor::default().document.save(&path), Err(Error::Conflict)));
     }
 }
 '''

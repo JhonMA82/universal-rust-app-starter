@@ -14,3 +14,10 @@ Run `cargo test -p starter-documents` for migration, reopen and conflict checks.
 workbenches. Native disk saves register the confirmed write through the
 private `notes.saved` operation. Hybrid notes keep editing and history in
 memory. Detached worker jobs write separate native recovery files.
+
+For a new native document type, use `storage::Document<T>` with your
+`Format<T>`. The session provides validated edits, undo/redo, reopening and
+conflict-aware saves. The first save binds the file, while Save As requires
+a fresh path. Successful saves mark the snapshot clean. Reopening preserves
+the stored revision and starts a fresh in-memory undo history. Use the
+portable `History<T>` directly when managing storage separately.

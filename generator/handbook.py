@@ -112,10 +112,10 @@ RECIPES = [
     module_guide(
         "documents", "Save and reopen an application document",
         ["crates/starter-documents/src/lib.rs", "crates/starter-documents/src/storage.rs"],
-        ["History<T>", "Format<T>", "Envelope<T>", "storage::open", "storage::save"],
+        ["History<T>", "Format<T>", "storage::Document<T>", "Document::open", "Document::save"],
         [
             "Choose a stable format ID, version, byte limit and validation function. Implement consecutive migrations when increasing the version.",
-            "Use `History::replace(candidate, validate)` to commit a valid edit. Render the current value and expose undo/redo through registered commands.",
+            "On native targets create a `storage::Document::new(format, initial, undo_capacity)` or open an existing file. Call `replace(candidate)`, `undo()`, `redo()` and `save(path)` on that session. The session owns the checksum, disk revision and save point.",
             "For a native file, save an `Envelope` with the last disk checksum or `None` for a new file. Keep the returned checksum. Apply `History::mark_saved` only after the verified write succeeds. Add a round-trip and an external-write conflict test.",
         ],
     ),
