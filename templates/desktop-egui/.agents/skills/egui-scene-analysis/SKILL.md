@@ -2,7 +2,7 @@
 name: egui-scene-analysis
 description: Extracts an evidence-backed, measurable scene specification from one or more application screenshots for egui implementation. Use to analyze geometry, coordinates, typography, visual tokens, uncertain assets, panel hierarchy, and screenshot-state assumptions before coding.
 license: MIT
-compatibility: PNG screenshots; Python 3.10+ managed with uv (Pillow) for the initializer.
+compatibility: PNG screenshots; Python 3.11+ managed with uv (Pillow) for the initializer.
 metadata:
   version: "1.0.0"
 ---

@@ -18,7 +18,8 @@ In: `templates/desktop-egui/pyproject.toml` (nuevo), retirada de
 `requirements.txt`, `cargo-generate.toml`, `.gitignore`, las cinco skills
 `egui-*` que citan Python, `tools/validate_toolkit.py`, los copiados de
 verificación, `README.md`, `AGENTS.md`, `docs/SKILLS.md`,
-`docs/EGUI_VISUAL_FORGE.md`, `docs/VALIDATION.md` y `CHANGELOG.md`.
+`docs/EGUI_VISUAL_FORGE.md`, `docs/VALIDATION.md`,
+`.github/workflows/validate-modules.yml` y `CHANGELOG.md`.
 
 Not: el generador propio del repositorio (`generator/requirements.txt`), los
 demás perfiles, la lógica de comparación de imágenes y las versiones pinneadas
@@ -37,6 +38,9 @@ de Pillow/NumPy/PyYAML.
 - [x] Verificar sin romper la generación. Prueba: suite del repo y proyecto
       generado con `cargo generate` que conserva `pyproject.toml` y ejecuta
       `uv run python tools/validate_toolkit.py`.
+- [x] Corregir los hallazgos de la revisión tier 1: el job nativo de CI y el
+      comando documentado del verificador. Prueba: workflow YAML parseado y
+      overlay de uv con `tomli_w`, Pillow, NumPy y PyYAML.
 
 ## Evidence
 - `uv sync` en `templates/desktop-egui` (uv 0.13.9, CPython 3.14.9) →
@@ -62,5 +66,30 @@ de Pillow/NumPy/PyYAML.
   templates/desktop-egui` solo encuentra las formas `uv run python tools/...`
   documentadas.
 
+### Revisión tier 1 (contexto fresco)
+
+Veredicto inicial: `CHANGES REQUESTED`. Dos hallazgos confirmados y corregidos:
+
+1. `.github/workflows/validate-modules.yml` seguía instalando el
+   `templates/desktop-egui/requirements.txt` eliminado en el job nativo de
+   `document-workbench`. Ahora instala uv, ejecuta
+   `uv sync --project templates/desktop-egui` y lanza el verificador con
+   `uv run --project templates/desktop-egui --with-requirements generator/requirements.txt`.
+2. El comando documentado en `docs/VALIDATION.md` no incluía `tomli-w`, que
+   `generator/compose.py` importa dentro de `generate()`. Se añadió el mismo
+   overlay `--with-requirements`.
+
+Al probar el overlay, uv eligió CPython 3.10 y `verify_composed.py` falló en
+`import tomllib` (3.11+). Se subió `requires-python` a `>=3.11` y se alinearon
+las skills y el README del perfil. Verificación final:
+
+- `uv sync --project templates/desktop-egui` → CPython 3.14.9, instalados
+  `numpy==2.5.5`, `pillow==12.3.0`, `pyyaml==6.0.4`.
+- `uv run --project templates/desktop-egui --with-requirements generator/requirements.txt python -c "import tomli_w, PIL, numpy, yaml"` → `imports ok`.
+- `... python tools/verify_composed.py --help` → entrada del verificador OK.
+- Workflow `validate-modules.yml` parseado con PyYAML: 11 pasos, los dos
+  comandos uv presentes.
+- `uv run python tools/validate_toolkit.py` → `PASS`; 13 tests del toolkit, `OK`.
+
 ## Next
-Commit local en `main` (sin push). Publicar queda pendiente de autorización.
+Commit correctivo en `main` (sin push). Publicar queda pendiente de autorización.

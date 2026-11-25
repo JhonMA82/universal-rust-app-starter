@@ -8,7 +8,7 @@ Native egui/eframe application.
 
 - Rust stable (`rustup`, `cargo`, Rust 2024 edition)
 - Python 3.11+ for the offline agent-readiness check
-- Optional: `uv` (Python 3.10+) for the Egui Visual Forge screenshot tooling
+- Optional: `uv` (Python 3.11+) for the Egui Visual Forge screenshot tooling
 - Profile-specific tooling only when relevant (see below)
 
 ## Quick start

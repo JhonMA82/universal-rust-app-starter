@@ -3,8 +3,9 @@
 ## Unreleased stabilization
 
 - Manage the `desktop-egui` Visual Forge Python tooling with `uv`:
-  `pyproject.toml` replaces `requirements.txt`, and the egui skills and profile
-  docs use `uv sync` / `uv run`.
+  `pyproject.toml` replaces `requirements.txt`, the egui skills and profile
+  docs use `uv sync` / `uv run`, and the native CI verifier runs through the
+  same uv environment.
 - Reject missing, ambiguous or ineffective profile adapter edits.
 - Validate Cargo features and document only the composed entrypoints.
 - Verify Minimal and Application across all profiles and drive Leptos, Dioxus

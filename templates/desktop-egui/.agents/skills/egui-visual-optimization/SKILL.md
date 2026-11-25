@@ -2,7 +2,7 @@
 name: egui-visual-optimization
 description: Measures and iteratively improves screenshot fidelity of an egui application using unaltered reference/candidate images, region-level metrics, diff heatmaps, causal hypotheses, and explicit acceptance gates. Use after each egui UI capture or when diagnosing mismatched pixels or layout.
 license: MIT
-compatibility: Python 3.10+ managed with uv, Pillow, NumPy; source and candidate PNG files.
+compatibility: Python 3.11+ managed with uv, Pillow, NumPy; source and candidate PNG files.
 metadata:
   version: "1.0.0"
 ---

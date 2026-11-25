@@ -2,7 +2,7 @@
 name: egui-reconstruction
 description: Orchestrates full screenshot-to-Rust-egui reproduction, from an image reference to a running application with measured visual fidelity. Use when the user wants to recreate, replicate, or match a GUI screenshot in egui/eframe, including an entire screen or multiple UI states.
 license: MIT
-compatibility: Rust/egui projects, Python 3.10+ managed with uv (Pillow, NumPy and PyYAML) for the supplied visual comparator; supports Agent Skills clients including OpenCode.
+compatibility: Rust/egui projects, Python 3.11+ managed with uv (Pillow, NumPy and PyYAML) for the supplied visual comparator; supports Agent Skills clients including OpenCode.
 metadata:
   version: "1.0.0"
 ---
