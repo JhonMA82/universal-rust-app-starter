@@ -57,6 +57,14 @@ impl<T: PartialEq> History<T> {
     pub fn mark_saved(&mut self, saved: Arc<T>) {
         self.saved = saved;
     }
+    /// Replace the live value with a recovered draft. The saved point is kept,
+    /// so the restored value reports dirty when it differs from the file.
+    pub fn restore(&mut self, value: T, revision: u64) {
+        self.current = Arc::new(value);
+        self.undo.clear();
+        self.redo.clear();
+        self.revision = revision;
+    }
     pub fn replace(
         &mut self,
         value: T,
@@ -126,6 +134,12 @@ pub struct Format<T> {
     pub migrate: fn(u32, &mut Value) -> Result<(), Error>,
     pub validate: fn(&T) -> Result<(), Error>,
 }
+impl<T> Clone for Format<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<T> Copy for Format<T> {}
 impl<T: DeserializeOwned> Format<T> {
     pub fn decode(&self, input: &[u8]) -> Result<Envelope<T>, Error> {
         if input.len() > self.max_bytes {

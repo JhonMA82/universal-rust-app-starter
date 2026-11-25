@@ -21,3 +21,10 @@ conflict-aware saves. The first save binds the file, while Save As requires
 a fresh path. Successful saves mark the snapshot clean. Reopening preserves
 the stored revision and starts a fresh in-memory undo history. Use the
 portable `History<T>` directly when managing storage separately.
+
+`Recovery` names a run-scoped draft file. `Document::autosave` writes only a
+dirty document and never moves the save point; `Document::recover` restores a
+newer draft while keeping the file's saved content as the clean point;
+`Document::discard_recovery` deletes the draft after a successful save. A new
+product supplies its `Format<T>` and these three calls, so opening, saving,
+autosave and recovery stay in one session.

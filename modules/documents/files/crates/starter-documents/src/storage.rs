@@ -18,6 +18,51 @@ pub struct SaveReport {
     pub directory_synced: bool,
 }
 
+/// Run-scoped location for a dirty draft written by autosave.
+///
+/// The key is sanitized to one file name. Callers own the directory and the
+/// decision to recover or discard a draft.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Recovery {
+    directory: PathBuf,
+    key: String,
+}
+impl Recovery {
+    pub fn new(directory: impl Into<PathBuf>, key: impl AsRef<str>) -> Self {
+        let key: String = key
+            .as_ref()
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.') {
+                    c
+                } else {
+                    '-'
+                }
+            })
+            .collect();
+        let key = match key.as_str() {
+            "" | "." | ".." => "recovery".into(),
+            _ => key,
+        };
+        Self {
+            directory: directory.into(),
+            key,
+        }
+    }
+    pub fn directory(&self) -> &Path {
+        &self.directory
+    }
+    pub fn key(&self) -> &str {
+        &self.key
+    }
+    pub fn path(&self) -> PathBuf {
+        self.directory.join(format!("{}.json", self.key))
+    }
+    pub fn exists(&self) -> bool {
+        self.path().is_file()
+    }
+}
+
 /// Native, typed document session with history and conflict-aware persistence.
 ///
 /// The application supplies its format and chooses paths. Opening a document
@@ -27,6 +72,16 @@ pub struct Document<T> {
     history: History<T>,
     binding: Option<(PathBuf, Checksum)>,
     extra: BTreeMap<String, Value>,
+}
+impl<T: Clone> Clone for Document<T> {
+    fn clone(&self) -> Self {
+        Self {
+            format: self.format,
+            history: self.history.clone(),
+            binding: self.binding.clone(),
+            extra: self.extra.clone(),
+        }
+    }
 }
 
 impl<T: Clone + DeserializeOwned + Serialize + PartialEq> Document<T> {
@@ -90,6 +145,55 @@ impl<T: Clone + DeserializeOwned + Serialize + PartialEq> Document<T> {
         self.binding = Some((path, report.checksum));
         self.history.mark_saved(snapshot);
         Ok(report)
+    }
+
+    /// Write the dirty draft to its recovery file. Autosave never moves the save
+    /// point, so the document stays dirty until `save` succeeds.
+    pub fn autosave(&self, recovery: &Recovery) -> Result<Option<SaveReport>, Error> {
+        if !self.history.dirty() {
+            return Ok(None);
+        }
+        std::fs::create_dir_all(recovery.directory())?;
+        let path = recovery.path();
+        let expected = match open(&path, &self.format) {
+            Ok((_, checksum)) => Some(checksum),
+            Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error),
+        };
+        let content = Envelope {
+            format: self.format.id.into(),
+            version: self.format.version,
+            revision: self.history.revision(),
+            content: (*self.history.snapshot()).clone(),
+            extra: self.extra.clone(),
+        };
+        save(&path, &self.format, &content, expected).map(Some)
+    }
+
+    /// Load a newer recovery draft into the live history. The save point is
+    /// preserved, so the recovered content remains dirty.
+    pub fn recover(&mut self, recovery: &Recovery) -> Result<bool, Error> {
+        let (content, _) = match open(&recovery.path(), &self.format) {
+            Ok(document) => document,
+            Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(error) => return Err(error),
+        };
+        if content.revision <= self.history.revision() {
+            return Ok(false);
+        }
+        self.history.restore(content.content, content.revision);
+        if !content.extra.is_empty() {
+            self.extra = content.extra;
+        }
+        Ok(true)
+    }
+
+    pub fn discard_recovery(&self, recovery: &Recovery) -> Result<(), Error> {
+        match std::fs::remove_file(recovery.path()) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.into()),
+        }
     }
 }
 
@@ -300,5 +404,39 @@ mod tests {
         ));
         std::fs::write(&path, b"bad").unwrap();
         assert!(open(&path, &format).is_err());
+    }
+
+    #[test]
+    fn autosave_and_recovery_preserve_the_save_point() {
+        fn format() -> Format<String> {
+            Format {
+                id: "text",
+                version: 1,
+                max_bytes: 1024,
+                migrate: |_, _| Err(Error::Format),
+                validate: |_| Ok(()),
+            }
+        }
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("document.json");
+        let recovery = Recovery::new(directory.path(), "run:1");
+        assert_eq!(recovery.key(), "run-1");
+        let mut document = Document::new(format(), "saved".into(), 4).unwrap();
+        assert!(document.autosave(&recovery).unwrap().is_none());
+        document.replace("draft".into()).unwrap();
+        assert_eq!(document.autosave(&recovery).unwrap().unwrap().revision, 1);
+        assert!(document.history().dirty(), "autosave must not mark saved");
+        document.save(&path).unwrap();
+        document.replace("newer".into()).unwrap();
+        document.autosave(&recovery).unwrap().unwrap();
+        let mut reopened = Document::open(format(), &path, 4).unwrap();
+        assert_eq!(reopened.history().value(), "draft");
+        assert!(reopened.recover(&recovery).unwrap());
+        assert_eq!(reopened.history().value(), "newer");
+        assert!(reopened.history().dirty());
+        assert!(!reopened.recover(&recovery).unwrap(), "same revision is stale");
+        reopened.discard_recovery(&recovery).unwrap();
+        assert!(!recovery.exists());
+        assert!(!reopened.recover(&recovery).unwrap());
     }
 }

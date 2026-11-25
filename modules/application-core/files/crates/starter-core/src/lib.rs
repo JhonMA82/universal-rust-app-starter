@@ -118,6 +118,11 @@ impl<S: 'static> Application<S> {
     pub fn state(&self) -> &S {
         &self.state
     }
+    /// Session-level access for persistence adapters. Domain edits still go
+    /// through `invoke` so revisions, receipts and events stay consistent.
+    pub fn state_mut(&mut self) -> &mut S {
+        &mut self.state
+    }
     pub fn events(&self) -> &VecDeque<Event> {
         &self.events
     }
