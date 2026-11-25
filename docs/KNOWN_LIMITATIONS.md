@@ -1,9 +1,8 @@
 # Known limitations
 
-- Native-window and browser runs require a host display or a supported
-  headless browser. Cross-compilation and offscreen rendering cover different
-  behaviors. The local execution environment blocks sockets needed by its
-  X11 and Chromium processes.
+- Native-window runs require a host or virtual display. Offscreen rendering,
+  a virtual-display window, browser execution and native compilation are
+  reported separately. See [verification](VALIDATION.md) for setup.
 - Live Application MCP is opt-in, loopback-only and bearer authenticated.
   Discovery files are hints. The client verifies the advertised session after
   MCP initialization. The separately enabled graphical inspection channel

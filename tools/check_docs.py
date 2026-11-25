@@ -9,7 +9,7 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from generator.compose import catalog, read_json
+from generator.compose import catalog, composition_guide, read_json
 
 LINK = re.compile(r"(?<!!)\[[^\]\n]+\]\(([^\s()]+)\)")
 
@@ -41,6 +41,28 @@ def module_table(modules, presets):
     return "\n".join(result) + "\n"
 
 
+def project_contract(root, report, modules):
+    installed = report["modules"]
+    if unknown := installed.keys() - modules.keys():
+        yield f"unknown installed modules: {sorted(unknown)}"
+        return
+    guide = root / "docs/COMPOSITION.md"
+    if installed:
+        expected = composition_guide(
+            report["profile"], report["preset"], report["entrypoints"],
+            {name: modules[name] for name in installed},
+        )
+        if not guide.is_file() or guide.read_text(encoding="utf-8") != expected:
+            yield "generated composition guide diverges from the selected entrypoints"
+    elif guide.exists():
+        yield "base profile advertises a modular composition guide"
+    for name in installed:
+        module = modules[name]
+        for payload in module["files"]:
+            if payload.startswith(("docs/", ".agents/skills/")) and not (root / payload).is_file():
+                yield f"{name}: generated payload missing {payload}"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true", help="regenerate the module table")
@@ -52,8 +74,8 @@ def main():
         report = read_json(root / "generation-report.json")
         files = [root / "README.md", root / "AGENTS.md"]
         files.extend((root / "docs").rglob("*.md"))
-        if report["modules"] and not (root / "docs/COMPOSITION.md").is_file():
-            errors.append("missing generated composition guide")
+        files.extend((root / ".agents/skills").rglob("*.md"))
+        errors.extend(project_contract(root, report, catalog()))
     else:
         modules = catalog()
         profiles = read_json(ROOT / "profiles.json")

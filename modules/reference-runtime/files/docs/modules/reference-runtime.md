@@ -1,8 +1,9 @@
 # Reference entrypoints
 
-Run `cargo run -p desktop` for the workspace, add `-- --mcp` for stdio,
-`-- --mcp-gui` for stdio sharing the running window state, or
-`-- --invoke '<request JSON>'` for one operation in a fresh process.
+Run `cargo run -p desktop` for the workspace or use
+`cargo run -p desktop -- --operations` to list the registered operations.
+Add `-- --invoke '<request JSON>'` to run one operation in a fresh process.
+The composition guide lists the automation entrypoints installed in this project.
 
 For development UI inspection, run `cargo run -p desktop --features
 ui-inspection -- --ui-inspect` and attach the official egui_mcp 0.3 bridge
@@ -17,13 +18,3 @@ revision, and the engine checks permissions and availability again on dispatch.
 Applications can register a typed panel instance through `View::panels`.
 Use stable numeric instance IDs and stable kinds to keep layouts restorable.
 Panels with floating enabled become native viewports or embedded browser windows.
-
-When Application MCP is selected, `--mcp-live` starts an authenticated
-loopback endpoint alongside the GUI. Set a private `STARTER_SESSION_DIR`
-and a unique URL-safe `STARTER_MCP_TOKEN` of at least 32 characters. Use
-`--sessions` from another process with the same directory to discover the
-endpoint, then configure an MCP HTTP client with the bearer token. Verify
-that capabilities return the advertised session ID. Descriptors contain no
-token. For normal process exit they are removed automatically. Discovery filters
-unreachable entries. `--mcp-live-headless` uses the same transport and ends
-on stdin EOF.

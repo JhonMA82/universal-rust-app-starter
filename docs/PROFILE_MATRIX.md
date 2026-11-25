@@ -1,17 +1,23 @@
 # Profile matrix
 
-| Template | Quality | External tools | Minimum smoke test | Agent specialist |
-|---|---|---|---|---|
-| library | Native CI | rustc/cargo | cargo test | rust-semver |
-| cli | Native CI | rustc/cargo | greet command | rust-cli |
-| desktop-egui | Native CI | OS window libraries; Python optional for visual QA | cargo run -p desktop | egui-visual-validation, egui-reconstruction, egui-scene-analysis, egui-ui-engineering, egui-runtime-verification, egui-visual-optimization |
-| desktop-egui-web | Native+WASM CI | Trunk + window libraries | desktop + trunk serve | egui-visual-validation, wasm-compatibility |
-| service-axum | Native CI | rustc/cargo | GET /health | rust-web-security, async-rust |
-| mcp-stdio | Native CI | MCP Inspector | initialize, tools/list, echo | mcp-protocol-validation |
-| mcp-http | Native CI | MCP Inspector | initialize, tools/list, echo | mcp-protocol-validation |
-| mcp-client | Native CI | running server | list_tools | mcp-protocol-validation |
-| web-leptos-csr | WASM CI | Trunk | browser render | wasm-compatibility |
-| web-leptos-fullstack | Native CI | rustc/cargo | HTML at `/` | rust-web-security |
-| web-dioxus | WASM CI | Dioxus CLI | browser render | wasm-compatibility |
+Every profile is available through direct Cargo Generate and through the
+compositor's Minimal preset. Application connects the typed operation registry.
 
-Actual package compilation and browser/tool integration remain unverified in the initial packaging environment; see VALIDATION.md.
+| Profile | Targets | Application integration | Runtime verification |
+|---|---|---|---|
+| `library` | Native | Public operations API | Doctest |
+| `cli` | Native | Operation CLI, optional MCP stdio | Greeting and operation process |
+| `desktop-egui` | Native | Egui settings workspace and operation CLI, optional MCP | Operation process and reference window smoke |
+| `desktop-egui-web` | Native, WASM | Shared settings UI or Workbench notes | Native tests, WASM check and browser interaction |
+| `service-axum` | Native | Authenticated application operations beside `/health` | Process with HTTP requests |
+| `mcp-stdio` | Native | Operation server over stdio | Handshake, tool discovery and invocation |
+| `mcp-http` | Native | Operation server over local Streamable HTTP | Handshake, tool discovery and invocation |
+| `mcp-client` | Native | Existing client and local operations companion | External discovery and companion process |
+| `web-leptos-csr` | WASM | Registry-backed settings controls | Trunk and browser interaction |
+| `web-leptos-fullstack` | Native | Authenticated operations beside server-rendered HTML | HTML and operation HTTP requests |
+| `web-dioxus` | WASM | Registry-backed settings controls | Dioxus CLI and browser interaction |
+
+Workbench supports both egui profiles. The hybrid notes view keeps its state
+in memory. Engineering supports native egui. See the
+[module catalog](MODULE_CATALOG.md) for module constraints and
+[validation](VALIDATION.md) for the commands and evidence categories.

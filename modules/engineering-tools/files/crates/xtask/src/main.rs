@@ -5,9 +5,30 @@ use std::{
     time::Instant,
 };
 
+const HELP: &str = "cargo xtask [COMMAND]
+
+doctor     Report Cargo and compiler versions
+layers     Audit resolved architecture for the selected targets
+fast       Run formatting, layer and build checks
+verify     Run fast checks, tests and Clippy
+ci         Run the complete verify suite
+test       Run native workspace tests
+wasm       Check the selected WASM packages
+docs       Build workspace API documentation
+coverage   Run workspace coverage with cargo-llvm-cov
+security   Audit the lockfile with cargo-audit
+inspect    Compile the explicitly enabled desktop inspection adapter
+ui-test    Run the desktop shell tests
+bundle     Package the workspace with the distribution module
+affected   Check named packages and their native workspace dependents";
+
 fn main() -> ExitCode {
     let mut args = std::env::args().skip(1);
     let cap = args.next().unwrap_or_else(|| "verify".into());
+    if matches!(cap.as_str(), "--help" | "-h" | "help") {
+        println!("{HELP}");
+        return ExitCode::SUCCESS;
+    }
     let profile = std::fs::read("generation-report.json")
         .ok()
         .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
@@ -36,9 +57,10 @@ fn main() -> ExitCode {
         "affected" if native => checks.push(affected(args.collect())),
         "security" => checks.push(cargo_tool("audit", &[])),
         "inspect"
-            if profile["entrypoints"]
-                .as_array()
-                .is_some_and(|items| items.iter().any(|item| item == "desktop")) =>
+            if native
+                && profile["entrypoints"]
+                    .as_array()
+                    .is_some_and(|items| items.iter().any(|item| item == "desktop")) =>
         {
             checks.push(run(
                 "cargo",
@@ -86,18 +108,17 @@ fn main() -> ExitCode {
         }
         "test" if native => checks.push(run("cargo", &["test", "--workspace"], "native")),
         "wasm" if wasm => checks.push(wasm_check(&profile)),
-        "test" | "wasm" | "coverage" | "inspect" | "ui-test" | "bundle" => checks.push(record(
-            &cap,
-            "profile",
-            "not_applicable",
-            0,
-            "target absent",
-        )),
+        "test" | "wasm" | "coverage" | "inspect" | "ui-test" | "bundle" | "affected" => checks
+            .push(record(
+                &cap,
+                "profile",
+                "not_applicable",
+                0,
+                "selected configuration lacks the required target or module",
+            )),
         "docs" => checks.push(run("cargo", &["doc", "--workspace", "--no-deps"], "host")),
         _ => {
-            eprintln!(
-                "cargo xtask <doctor|layers|fast|verify|ci|test|wasm|docs|coverage|security|inspect|ui-test|bundle|affected>"
-            );
+            eprintln!("unknown command: {cap}\n\n{HELP}");
             return ExitCode::FAILURE;
         }
     }
@@ -379,12 +400,12 @@ mod tests {
     use super::*;
     #[test]
     fn impact_selects_workspace_dependents() {
-        let graph = json!({"workspace_members":["a","b","c"],"packages":[
-            {"id":"a","name":"core"},{"id":"b","name":"adapter"},{"id":"c","name":"unrelated"}],
-            "resolve": {"nodes":[{"id":"a","deps":[]},{"id":"b","deps":[{"pkg":"a"}]},{"id":"c","deps":[]}]}});
+        let graph = json!({"workspace_members":["a","b","c","d"],"packages":[
+            {"id":"a","name":"core"},{"id":"b","name":"adapter"},{"id":"c","name":"unrelated"},{"id":"d","name":"entrypoint"}],
+            "resolve": {"nodes":[{"id":"a","deps":[]},{"id":"b","deps":[{"pkg":"a"}]},{"id":"c","deps":[]},{"id":"d","deps":[{"pkg":"b"}]}]}});
         assert_eq!(
             reverse_dependents(&graph, &["core".into()]).unwrap(),
-            BTreeSet::from(["adapter".into(), "core".into()])
+            BTreeSet::from(["adapter".into(), "core".into(), "entrypoint".into()])
         );
     }
 

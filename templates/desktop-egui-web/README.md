@@ -33,6 +33,7 @@ Prefer modifying `crates/app` rather than platform runners for shared UI behavio
 ```sh
 rustup target add wasm32-unknown-unknown
 cargo install trunk --locked
+cd crates/web
 trunk serve
 trunk build --release
 ```

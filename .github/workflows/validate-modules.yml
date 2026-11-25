@@ -25,7 +25,7 @@ jobs:
         with:
           components: rustfmt, clippy
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev mesa-vulkan-drivers xvfb xauth
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-0 libwayland-dev libx11-dev mesa-vulkan-drivers xvfb xauth
       - run: python -m pip install -r generator/requirements.txt
       - run: cargo install cargo-generate --version 0.26.0 --locked
       - if: runner.os == 'Linux'
@@ -33,7 +33,9 @@ jobs:
       - if: runner.os != 'Linux'
         run: python tools/verify_composed.py --reference ${{ matrix.reference }} --evidence evidence/result.json
       - if: runner.os == 'Linux' && matrix.reference == 'document-workbench'
-        run: xvfb-run -a python tools/verify_composed.py --reference document-workbench --native-window --evidence evidence/native-window.json
+        run: python -m pip install -r templates/desktop-egui/requirements.txt
+      - if: runner.os == 'Linux' && matrix.reference == 'document-workbench'
+        run: xvfb-run -a -s '-screen 0 1280x800x24 -dpi 96' python tools/verify_composed.py --reference document-workbench --native-window --evidence evidence/native-window.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -62,6 +64,11 @@ jobs:
       - run: python tools/verify_composed.py --ordinary --evidence evidence/ordinary.json
       - run: python tools/verify_composed.py --hybrid --evidence evidence/result.json
       - run: cargo install trunk --version 0.22.2 --locked
+      - name: Install Dioxus CLI
+        run: |
+          mkdir -p "$RUNNER_TEMP/dioxus-cli"
+          curl --fail --location --silent --show-error https://github.com/DioxusLabs/dioxus/releases/download/v0.7.3/dx-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C "$RUNNER_TEMP/dioxus-cli"
+          echo "$RUNNER_TEMP/dioxus-cli" >> "$GITHUB_PATH"
       - run: python -m pip install playwright==1.58.0
       - run: python -m playwright install --with-deps chromium
       - run: python tools/verify_browser.py --screenshots evidence/browser

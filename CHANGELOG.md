@@ -2,6 +2,15 @@
 
 ## Unreleased stabilization
 
+- Reject missing, ambiguous or ineffective profile adapter edits.
+- Validate Cargo features and document only the composed entrypoints.
+- Verify Minimal and Application across all profiles and drive Leptos, Dioxus
+  and hybrid egui interactions in Chromium.
+- Supply the X11 keyboard runtime for native window CI and compare native
+  captures with Visual Forge.
+- Reconcile duplicated floating/docked panels and evaluate command palette
+  availability with the entered parameters.
+
 - Route ordinary presets and references through the same generated entrypoints.
 - Register dynamic panel instances and dispatch operations from the command palette.
 - Require explicit snapshot isolation and a registered document-save completion.

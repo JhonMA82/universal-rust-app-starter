@@ -55,8 +55,8 @@ def cli(exe, project, scenario):
     expect(json.loads(result.stdout)["ok"]["result"], expected)
 
 
-def mcp(exe, project, scenario):
-    with subprocess.Popen([str(exe), "--mcp"], cwd=project, text=True, encoding="utf-8",
+def mcp(exe, project, scenario, flags=("--mcp",)):
+    with subprocess.Popen([str(exe), *flags], cwd=project, text=True, encoding="utf-8",
                           stdin=subprocess.PIPE, stdout=subprocess.PIPE) as peer:
         messages = queue.Queue()
         def collect():
@@ -102,6 +102,12 @@ def mcp(exe, project, scenario):
                 assert call("tools/call", arg)["structuredContent"] == receipt
             denied = call("tools/call", {"name": "execute", "arguments": {**req, "session_id": "unknown"}})
             assert denied.get("isError") and denied["structuredContent"]["code"] == "forbidden"
+            stale = {**req, "request_id": "stale", "expected_revision": revision + 1}
+            batch = call("tools/call", {"name": "execute_batch", "arguments": {"requests": [req, stale]}})
+            results = batch["structuredContent"]
+            assert results["atomic"] is False, batch
+            assert "ok" in results["items"][0], batch
+            assert results["items"][1]["error"]["code"] == "conflict", batch
         finally:
             peer.stdin.close()
             try:
@@ -111,7 +117,7 @@ def mcp(exe, project, scenario):
                 peer.wait()
 
 
-def http_service(exe, project):
+def http_service(exe, project, *, ssr=False):
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1",0))
         port = reservation.getsockname()[1]
@@ -124,8 +130,11 @@ def http_service(exe, project):
             deadline = time.monotonic()+12
             while True:
                 try:
-                    with transport.open(base+"/health",timeout=1) as response:
-                        assert json.load(response)["status"] == "ok"
+                    with transport.open(base + ("/" if ssr else "/health"), timeout=1) as response:
+                        if ssr:
+                            assert b"Rendered on the Rust server" in response.read()
+                        else:
+                            assert json.load(response)["status"] == "ok"
                     break
                 except urllib.error.URLError:
                     assert child.poll() is None and time.monotonic()<deadline, "service did not become reachable"
@@ -143,8 +152,83 @@ def http_service(exe, project):
             except subprocess.TimeoutExpired: child.kill(); child.wait()
 
 
+def read_mcp_response(response):
+    if response.headers.get_content_type() == "text/event-stream":
+        for line in response:
+            if line.startswith(b"data:") and line[5:].strip():
+                return json.loads(line[5:].strip())
+        raise AssertionError("MCP event stream ended without a message")
+    content = response.read()
+    if not content:
+        raise AssertionError(f"MCP returned empty JSON body, status {response.status}")
+    return json.loads(content)
+
+
+def standalone_mcp(exe, project, scenario=None, *, client=None):
+    with socket.socket() as reservation:
+        reservation.bind(("127.0.0.1", 0))
+        address = reservation.getsockname()
+    env = {**os.environ, "MCP_BIND": f"{address[0]}:{address[1]}"}
+    endpoint = f"http://{env['MCP_BIND']}/mcp"
+    with subprocess.Popen([str(exe)], cwd=project, env=env, stdout=subprocess.DEVNULL) as server:
+        try:
+            deadline = time.monotonic() + 12
+            while True:
+                try:
+                    with socket.create_connection(address, timeout=1):
+                        break
+                except OSError:
+                    assert server.poll() is None and time.monotonic() < deadline, "MCP server did not bind"
+                    time.sleep(0.1)
+            if client:
+                output = subprocess.check_output([str(client)], cwd=project, text=True, timeout=20,
+                                                 env={**env, "MCP_URL": endpoint})
+                assert "capabilities" in output and "execute_batch" in output, output
+                return
+            transport = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            session = None
+
+            def call(method, params=None, *, number=None):
+                message = {"jsonrpc": "2.0", "method": method}
+                if params is not None:
+                    message["params"] = params
+                if number is not None:
+                    message["id"] = number
+                headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+                if session:
+                    headers["Mcp-Session-Id"] = session
+                    headers["MCP-Protocol-Version"] = "2025-11-25"
+                request = urllib.request.Request(endpoint, json.dumps(message).encode(), headers)
+                with transport.open(request, timeout=8) as response:
+                    return response.headers.get("Mcp-Session-Id"), (read_mcp_response(response) if number is not None else None)
+
+            session, response = call("initialize", {
+                "protocolVersion": "2025-11-25", "capabilities": {},
+                "clientInfo": {"name": "starter-tests", "version": "0.1.0"},
+            }, number=1)
+            assert response["result"]["protocolVersion"] == "2025-11-25", response
+            call("notifications/initialized")
+            _, response = call("tools/list", {}, number=2)
+            assert {"capabilities", "execute", "execute_batch"} <= {t["name"] for t in response["result"]["tools"]}
+            _, response = call("tools/call", {"name": "capabilities", "arguments": {}}, number=3)
+            status = response["result"]["structuredContent"]
+            op, values, document, expected = scenario[0]
+            _, response = call("tools/call", {"name": "execute", "arguments": {
+                "command_id": op, "parameters": values, "document_id": document,
+                "session_id": status["session_id"], "expected_revision": status["revision"],
+            }}, number=4)
+            expect(response["result"]["structuredContent"]["result"], expected)
+        finally:
+            server.terminate()
+            try:
+                server.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                server.kill()
+                server.wait()
+
+
 def native_window(project, target, evidence, environment):
-    if not (environment.get("DISPLAY") or environment.get("WAYLAND_DISPLAY")):
+    if sys.platform.startswith("linux") and not (environment.get("DISPLAY") or environment.get("WAYLAND_DISPLAY")):
         raise FileNotFoundError("a display server is required for native window inspection")
     subprocess.run(["cargo","build","-p","desktop","--features","ui-inspection"],cwd=project,env=environment,check=True)
     exe = target / "debug" / ("desktop.exe" if os.name == "nt" else "desktop")
@@ -157,6 +241,19 @@ def native_window(project, target, evidence, environment):
             child.terminate()
             try: child.wait(timeout=5)
             except subprocess.TimeoutExpired: child.kill(); child.wait()
+
+
+def compare_native_captures(project, evidence, environment):
+    directory = evidence.parent
+    reference = directory / "native-window.png"
+    scene = directory / "native-scene.json"
+    subprocess.run([sys.executable, "tools/init_scene.py", "--image", str(reference), "--out",
+                    str(scene), "--pixels-per-point", "1", "--state", "second note created"],
+                   cwd=project, env=environment, check=True)
+    subprocess.run([sys.executable, "tools/visual_check.py", "--scene", str(scene),
+                    "--candidate", str(directory / "native-repeat.png"),
+                    "--out", str(directory / "native-forge")],
+                   cwd=project, env=environment, check=True)
 
 
 def identity():
@@ -196,26 +293,21 @@ def live_mcp(exe, project):
                     assert time.monotonic() < deadline, "live instance did not register"
                     time.sleep(0.05)
                 [instance] = instances
+                assert instance["application"] and instance["pid"] == process.pid, instance
+                assert instance["address"].startswith("127.0.0.1:"), instance
+                descriptor = Path(temp) / (instance["session_id"] + ".json")
+                assert json.loads(descriptor.read_text()) == instance
+                assert token not in descriptor.read_text()
                 endpoint = f"http://{instance['address']}/mcp"
                 client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
                 session_id = None
-                def request(message, authorized=True):
+                def request(message, authorized=True, origin=None):
                     headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
                     if authorized: headers["Authorization"] = f"Bearer {token}"
+                    if origin: headers["Origin"] = origin
                     if session_id: headers["Mcp-Session-Id"] = session_id
                     return client.open(urllib.request.Request(endpoint,
                         json.dumps({"jsonrpc": "2.0", **message}).encode(), headers), timeout=5)
-                def payload(response):
-                    if response.headers.get_content_type() == "text/event-stream":
-                        for line in response:
-                            if line.startswith(b"data:") and line[5:].strip():
-                                return json.loads(line[5:].strip())
-                        raise AssertionError("MCP event stream ended without a message")
-                    content = response.read()
-                    if not content:
-                        raise AssertionError(f"MCP returned empty JSON body, status {response.status}")
-                    return json.loads(content)
-
                 initialize = {"id": 1, "method": "initialize", "params": {
                     "protocolVersion": "2025-11-25", "capabilities": {},
                     "clientInfo": {"name": "starter-tests", "version": "0.1.0"}}}
@@ -225,22 +317,30 @@ def live_mcp(exe, project):
                     assert exc.code == 401, exc
                 else:
                     raise AssertionError("unauthenticated live session")
+                try:
+                    request(initialize, origin="http://127.0.0.1")
+                except urllib.error.HTTPError as exc:
+                    assert exc.code == 403, exc
+                else:
+                    raise AssertionError("live MCP accepted a browser Origin")
                 with request(initialize) as response:
                     session_id = response.headers.get("Mcp-Session-Id")
-                    assert payload(response)["result"]["protocolVersion"]
+                    assert read_mcp_response(response)["result"]["protocolVersion"]
                 with request({"method": "notifications/initialized"}):
                     pass
                 with request({"id": 2, "method": "tools/call", "params": {"name": "capabilities", "arguments": {}}}) as response:
-                    state = payload(response)["result"]["structuredContent"]
+                    state = read_mcp_response(response)["result"]["structuredContent"]
                     assert state["session_id"] == instance["session_id"], state
                 with request({"id": 3, "method": "tools/call", "params": {"name": "execute", "arguments": {
                     "command_id": "notes.edit", "session_id": state["session_id"], "document_id": "1",
                     "expected_revision": state["revision"], "parameters": {"text": "via live MCP"}}}}) as response:
-                    assert payload(response)["result"]["structuredContent"]["result"]["text"] == "via live MCP"
+                    assert read_mcp_response(response)["result"]["structuredContent"]["result"]["text"] == "via live MCP"
             finally:
                 process.stdin.close()
                 try: process.wait(timeout=5)
                 except subprocess.TimeoutExpired: process.kill(); process.wait()
+        assert not descriptor.exists()
+        descriptor.write_text(json.dumps(instance))
         assert json.loads(subprocess.check_output([str(exe), "--sessions"], cwd=project, env=env)) == []
 
 
@@ -288,36 +388,61 @@ def main():
             subprocess.run(["cargo", *command], cwd=project, env=env, check=True)
 
         if args.ordinary:
+            workspace = [("workspace.rename", {"name": "Ordinary project"}, None, "Ordinary project")]
+            profiles = read_json(ROOT / "profiles.json")
             configurations = [
-                ("cli", "minimal", [], None),
-                ("cli", "application", ["application-mcp"], "workspace.rename"),
-                ("service-axum", "application", [], "http"),
-                ("desktop-egui", "workbench", [], "notes.edit"),
-                ("desktop-egui", "engineering", [], "box.resize"),
+                (profile, preset, ["application-mcp"] if (profile, preset) == ("cli", "application") else [])
+                for preset in ("minimal", "application") for profile in profiles
             ]
-            cases = {
-                "workspace.rename": [("workspace.rename", {"name": "Ordinary CLI"}, None, "Ordinary CLI")],
-                "notes.edit": SCENARIOS["document-workbench"],
-                "box.resize": SCENARIOS["engineering-workbench"],
-            }
-            for profile, preset, modules, operation in configurations:
+            configurations.extend(("desktop-egui", preset, []) for preset in ("workbench", "engineering"))
+            for profile, preset, modules in configurations:
                 name = f"{profile}-{preset}"
                 project = work / name
-                if not check(name, "generate ordinary project", lambda: generate(profile,preset,name,project,modules)):
+                if not check(name, "generate ordinary project", lambda: generate(profile, preset, name, project, modules)):
                     continue
-                package = "desktop" if profile == "desktop-egui" else name
+                check(name, "generated documentation and skills", lambda: subprocess.run(
+                    [sys.executable, str(ROOT / "tools/check_docs.py"), "--project", str(project)], check=True))
+                descriptor = profiles[profile]
+                if "wasm" in descriptor["targets"]:
+                    wasm_args = ["-p", descriptor["wasm_package"]] if "wasm_package" in descriptor else []
+                    check(name, "cargo check WASM", lambda: cargo(
+                        project, "check", *wasm_args, "--target", "wasm32-unknown-unknown"))
+                if "native" not in descriptor["targets"]:
+                    continue
+                check(name, "cargo test --workspace", lambda: cargo(project, "test", "--workspace"))
+                if preset == "minimal" and profile != "cli":
+                    continue
+                if profile in {"library", "web-leptos-csr", "web-dioxus"}:
+                    continue
+                package = "desktop" if profile.startswith("desktop-egui") else name
+                build = ["build", "-p", package, "--bins"]
                 binary = target / "debug" / (package + (".exe" if os.name == "nt" else ""))
-                if not check(name, "cargo build -p " + package, lambda: cargo(project,"build","-p",package)):
+                if not check(name, "cargo " + " ".join(build), lambda: cargo(project, *build)):
                     continue
-                if operation is None:
-                    check(name, "minimal greet",lambda: expect(subprocess.check_output(
-                        [str(binary),"greet","Rust"],cwd=project,text=True).strip(),"Hello, Rust!"))
-                elif operation == "http":
-                    check(name,"ordinary authenticated HTTP operation",lambda: http_service(binary,project))
+                if preset == "minimal":
+                    check(name, "minimal greet", lambda: expect(subprocess.check_output(
+                        [str(binary), "greet", "Rust"], cwd=project, text=True).strip(), "Hello, Rust!"))
+                elif profile in {"service-axum", "web-leptos-fullstack"}:
+                    check(name, "authenticated HTTP operation",
+                          lambda: http_service(binary, project, ssr=profile == "web-leptos-fullstack"))
+                elif profile == "mcp-stdio":
+                    check(name, "standalone MCP operation", lambda: mcp(binary, project, workspace, flags=()))
+                elif profile == "mcp-http":
+                    check(name, "standalone Streamable HTTP operation",
+                          lambda: standalone_mcp(binary, project, workspace))
+                elif profile == "mcp-client":
+                    companion = target / "debug" / ("operations.exe" if os.name == "nt" else "operations")
+                    check(name, "MCP client's local companion operation", lambda: cli(companion, project, workspace))
+                    server = target / "debug" / ("mcp-http-application.exe" if os.name == "nt" else "mcp-http-application")
+                    check(name, "MCP client's external tool discovery", lambda: standalone_mcp(server, project, client=binary))
                 else:
-                    check(name,"ordinary CLI operation",lambda: cli(binary,project,cases[operation]))
+                    scenario = {
+                        "workbench": SCENARIOS["document-workbench"],
+                        "engineering": SCENARIOS["engineering-workbench"],
+                    }.get(preset, workspace)
+                    check(name, "ordinary CLI operation", lambda: cli(binary, project, scenario))
                     if "application-mcp" in modules:
-                        check(name,"ordinary MCP operation",lambda: mcp(binary,project,cases[operation]))
+                        check(name, "ordinary MCP operation", lambda: mcp(binary, project, scenario))
         elif args.hybrid:
             project = work / "hybrid"
             if check("hybrid", "generate desktop-egui-web workbench",
@@ -342,6 +467,8 @@ def main():
                 check(name, "cargo fmt --all -- --check", lambda: cargo(project, "fmt", "--all", "--", "--check"))
                 check(name, "cargo xtask layers", lambda: cargo(project, "xtask", "layers"))
                 if name == "data-explorer":
+                    check(name, "cargo xtask affected starter-core",
+                          lambda: cargo(project, "xtask", "affected", "starter-core"))
                     def invalid_layer():
                         manifest = project / "crates/starter-dataset/Cargo.toml"
                         original = manifest.read_text(encoding="utf-8")
@@ -360,7 +487,7 @@ def main():
                       lambda: cargo(project, "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"))
                 if check(name, "cargo build -p desktop", lambda: cargo(project, "build", "-p", "desktop")):
                     check(name, "CLI process", lambda: cli(exe, project, SCENARIOS[name]))
-                    check(name, "MCP initialize, discover, execute and replay", lambda: mcp(exe, project, SCENARIOS[name]))
+                    check(name, "MCP initialize, discover, execute, replay and batch", lambda: mcp(exe, project, SCENARIOS[name]))
                 if name == "document-workbench":
                     check(name, "live loopback MCP discovery, authorization and disconnect", lambda: live_mcp(exe, project))
                     check(name, "cargo check -p desktop --features ui-inspection",
@@ -368,9 +495,13 @@ def main():
                     check(name, "official inspection plugin and command palette tests",
                           lambda: cargo(project,"test","-p","starter-reference","--features","ui-inspection"))
                 if args.native_window and name == "document-workbench":
-                    check(name, "native inspection discovers and clicks a control, then captures the window",
-                          lambda: native_window(project, target, evidence.parent / "native-window.png", env),
-                          ["native-window.png"])
+                    if check(name, "native inspection discovers and clicks a control, then captures the window",
+                             lambda: native_window(project, target, evidence.parent / "native-window.png", env),
+                             ["native-before.txt", "native-after.txt", "native-before.png",
+                              "native-window.png", "native-repeat.png"]):
+                        check(name, "Visual Forge compares captures of the post-interaction state",
+                              lambda: compare_native_captures(project, evidence, env),
+                              ["native-scene.json", "native-forge"])
                 if args.visual and name == "document-workbench":
                     env["STARTER_VISUAL_EVIDENCE"] = str(evidence.parent / "gallery")
                     check(name, "wgpu gallery and AccessKit interaction",

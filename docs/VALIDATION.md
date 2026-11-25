@@ -13,16 +13,24 @@ python3 tools/verify_composed.py --evidence evidence/references.json
 python3 tools/verify_composed.py --hybrid --evidence evidence/hybrid.json
 ```
 
-Reference checks build the generated binaries and execute CLI and MCP
-scenarios. Live MCP checks discovery, authentication, operation execution and
+The ordinary matrix generates and checks Minimal and Application for all
+eleven profiles, then exercises the native Workbench and Engineering presets.
+Reference checks build the generated binaries and execute CLI and MCP scenarios. Live MCP checks discovery, authentication, operation execution and
 exit over local Streamable HTTP. Use `--visual` for wgpu gallery and viewport
 captures. Use `--native-window` for an opt-in native inspection test from the
-Document Workbench. It needs a real display and accesses the same inspection
-endpoint used by the development bridge.
+Document Workbench. Install the Python dependencies listed in
+`templates/desktop-egui/requirements.txt` for Visual Forge. On Linux, the
+window needs a display and the X11 keyboard runtime package
+`libxkbcommon-x11-0`. A 96-DPI Xvfb run supplies a virtual display. The
+test uses the development inspection endpoint to find and click a widget,
+checks the updated AccessKit tree, and compares captures with Visual Forge.
 
 Run `python3 tools/verify_browser.py --screenshots evidence/browser` with
-Trunk and Playwright Chromium installed. It exercises a Leptos operation and
-verifies that the hybrid egui runner starts after loading its WASM bundle.
+Trunk, Dioxus CLI 0.7.3 and Playwright Chromium installed. Leptos and Dioxus
+rename a workspace using the rendered controls. The hybrid app creates two
+notes by keyboard and verifies each announcement before capturing the page.
+Use `--profile` to retry one case and `--chromium` to use an installed
+Chromium executable.
 The workflow covers native tests on Linux, Windows and macOS, with separate
 visual, browser and WASM jobs on Linux. Workflow status is independent from
 locally produced evidence. Store evidence outside the source tree or in the

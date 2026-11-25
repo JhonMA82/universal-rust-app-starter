@@ -2,8 +2,9 @@
 
 The serializable workspace owns a neutral tab/split tree and theme settings.
 egui_dock projects that tree into the UI and reads the current main surface
-back for persistence. Cmd/Ctrl+P opens preferences. On desktop the inspector
-can be shown in a second native viewport. WASM uses an embedded window.
+back for persistence. The host opens its command palette with Ctrl/Cmd+P.
+Preferences are available through the workspace menu. Panels that allow floating
+can open in another native viewport. The browser uses embedded windows.
 The shell confirms close requests when the host reports unsaved changes.
 
 Run `cargo test -p starter-desktop` for layout and AccessKit tests. With a

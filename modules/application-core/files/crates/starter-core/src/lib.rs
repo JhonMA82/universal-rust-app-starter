@@ -303,6 +303,60 @@ fn encode<O: Serialize>(value: O) -> Result<Value, Error> {
 mod tests {
     use super::*;
     use serde_json::json;
+    #[derive(JsonSchema)]
+    struct RejectedOutput;
+
+    impl Serialize for RejectedOutput {
+        fn serialize<T: serde::Serializer>(&self, _: T) -> Result<T::Ok, T::Error> {
+            Err(serde::ser::Error::custom("unserializable response"))
+        }
+    }
+
+    #[test]
+    fn encoding_error_does_not_commit_state_or_store_a_receipt() {
+        let mut app = Application::new(0i32, 1);
+        app.command(
+            Definition {
+                id: "change",
+                description: "Change state",
+                permission: "write",
+                public: true,
+                available: |_, _| true,
+            },
+            Kind::Command,
+            |state, value: i32, _| {
+                *state = value;
+                Ok(RejectedOutput)
+            },
+        )
+        .unwrap();
+        let session = Session {
+            id: "local".into(),
+            permissions: ["write".into()].into(),
+        };
+        let mut request = Request {
+            command_id: "change".into(),
+            parameters: json!(3),
+            session_id: session.id.clone(),
+            document_id: None,
+            request_id: Some("retry".into()),
+            expected_revision: Some(0),
+        };
+        assert_eq!(
+            app.invoke(&session, true, request.clone())
+                .unwrap_err()
+                .code,
+            "internal"
+        );
+        request.parameters = json!(4);
+        assert_eq!(
+            app.invoke(&session, true, request).unwrap_err().code,
+            "internal"
+        );
+        assert_eq!((*app.state(), app.revision()), (0, 0));
+        assert!(app.events().is_empty());
+    }
+
     #[test]
     fn rejected_operation_leaves_no_state_or_revision_change() {
         let mut app = Application::new(0i32, 2);

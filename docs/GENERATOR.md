@@ -22,6 +22,10 @@ conflicts, files, path dependencies, license, features, documentation and
 checks. The resolver reports invalid requests before publication. Manifests
 are merged structurally, file paths are checked and every composition runs
 Cargo metadata and the agent readiness checker before moving into place.
+Adapters check each source anchor for a single match. A changed or ambiguous
+anchor aborts generation and leaves the destination unpublished. The composer
+checks declared features against Cargo metadata after the manifest merge.
+The composition guide is derived from the installed entrypoints and modules.
 
 Direct Cargo Generate remains available for every original profile.
 A generated project owns its source and does not require the starter to build.

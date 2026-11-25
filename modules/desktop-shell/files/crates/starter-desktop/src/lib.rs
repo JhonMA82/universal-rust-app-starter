@@ -309,9 +309,10 @@ impl Shell {
         workspace
             .layout
             .install(dock.main_surface_mut(), NodeIndex::root());
-        workspace
-            .floating
-            .retain(|id| panels.get(id).is_some_and(|spec| spec.floating));
+        workspace.floating.retain(|id| {
+            panels.get(id).is_some_and(|spec| spec.floating)
+                && dock.find_tab(&Panel::Custom(*id)).is_none()
+        });
         workspace.registered.retain(|id| panels.contains_key(id));
         for (&id, spec) in &panels {
             if workspace.registered.insert(id)
@@ -616,6 +617,29 @@ mod tests {
         assert!(restored.open_panel(1));
         assert!(restored.workspace.floating.is_empty());
         assert!(restored.dock.find_tab(&Panel::Custom(1)).is_some());
+    }
+    #[test]
+    fn restored_panel_occupies_only_one_surface() {
+        let panel = PanelSpec {
+            instance: 1,
+            kind: "custom",
+            title: "Custom",
+            floating: true,
+            initially_open: true,
+        };
+        let workspace = Workspace {
+            layout: Layout::Tabs(vec![Panel::Work, Panel::Custom(1), Panel::Custom(9)], 2),
+            floating: BTreeSet::from([1, 9]),
+            registered: BTreeSet::from([1, 9]),
+            ..Workspace::default()
+        };
+        let shell = Shell::with_panels(workspace, &[panel]);
+        assert!(shell.workspace.floating.is_empty());
+        assert_eq!(
+            shell.workspace.layout,
+            Layout::Tabs(vec![Panel::Work, Panel::Custom(1)], 0)
+        );
+        assert_eq!(shell.workspace.registered, BTreeSet::from([1]));
     }
     #[test]
     fn gallery_control_is_accessible_and_interactive() {

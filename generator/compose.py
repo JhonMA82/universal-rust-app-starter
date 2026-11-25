@@ -162,6 +162,22 @@ def verify_autonomy(project):
             walk(tomllib.loads(path.read_text(encoding="utf-8")), path)
 
 
+def composition_guide(profile, preset, interfaces, modules):
+    entries = ", ".join(interfaces) or "base profile"
+    lines = [
+        "# Generated composition", "", f"Profile: `{profile}`. Preset: `{preset}`.",
+        "", f"Entry points: {entries}.", "",
+    ]
+    guides = integration.guides(profile, interfaces)
+    if guides:
+        lines.extend(["## Installed entrypoints", "", *[f"- {item}" for item in guides], ""])
+    lines.extend(
+        f"- [{key}]({module['documentation'].removeprefix('docs/')}) — {module['description']}"
+        for key, module in modules.items()
+    )
+    return "\n".join(lines) + "\n"
+
+
 def generate(profile, preset, name, destination, requested=(), targets=(), features=(), reference=None):
     import tomli_w
 
@@ -224,20 +240,24 @@ def generate(profile, preset, name, destination, requested=(), targets=(), featu
             path.write_text(tomli_w.dumps(manifest), encoding="utf-8", newline="\n")
         if ordered:
             module_doc = project / "docs/COMPOSITION.md"
-            modules_description = "\n".join(
-                f"- [{item}]({modules[item]['documentation'].removeprefix('docs/')}) — {modules[item]['description']}"
-                for item in ordered)
-            module_doc.write_text(
-                "# Generated composition\n\n" + f"Profile: `{profile}`. Preset: `{preset}`.\n\n"
-                + f"Entry points: {', '.join(interfaces) or 'base profile'}.\n\n"
-                + modules_description + "\n", encoding="utf-8")
+            module_doc.write_text(composition_guide(profile, preset, interfaces, {
+                item: modules[item] for item in ordered
+            }), encoding="utf-8")
             for doc in ("AGENTS.md", "README.md"):
                 with (project / doc).open("a", encoding="utf-8") as stream:
                     stream.write("\nSee [the generated composition](docs/COMPOSITION.md) for installed capabilities.\n")
         subprocess.run([sys.executable, "scripts/check_agents.py"], cwd=project, check=True)
         verify_autonomy(project)
-        subprocess.run(["cargo", "metadata", "--no-deps", "--format-version", "1"],
-                       cwd=project, stdout=subprocess.DEVNULL, check=True)
+        metadata = json.loads(subprocess.check_output(
+            ["cargo", "metadata", "--no-deps", "--format-version", "1"],
+            cwd=project, encoding="utf-8",
+        ))
+        installed_features = {
+            f"{package['name']}/{feature}" for package in metadata["packages"]
+            for feature in package["features"]
+        }
+        if missing := declared_features - installed_features:
+            raise CompositionError(f"missing Cargo features after composition: {sorted(missing)}")
         if interfaces:
             subprocess.run(["cargo", "fmt", "--all"], cwd=project, check=True)
         report = {

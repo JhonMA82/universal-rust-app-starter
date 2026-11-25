@@ -1,9 +1,12 @@
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from generator.compose import ROOT, CompositionError, catalog, check_files, merge, read_json, resolve
+from generator.compose import ROOT, CompositionError, catalog, check_files, composition_guide, merge, read_json, resolve
+from generator import integration
+from tools.check_docs import project_contract
 from tools import verify_templates
 
 
@@ -44,6 +47,51 @@ class CompositionTests(unittest.TestCase):
             for paths in ({"../escape"}, {"cargo.toml"}, {"a/Foo", "A/Bar"}):
                 with self.subTest(paths=paths), self.assertRaises(CompositionError):
                     check_files(root, paths, set())
+
+    def test_application_adapters_connect_all_profile_templates(self):
+        modules = catalog()
+        profiles = read_json(ROOT / "profiles.json")
+        expected = {
+            "library": "operations-api", "cli": "operations-cli",
+            "desktop-egui": "desktop", "desktop-egui-web": "operations-web",
+            "service-axum": "application-http", "mcp-stdio": "mcp-stdio",
+            "mcp-http": "mcp-http", "mcp-client": "operations-cli-companion",
+            "web-leptos-csr": "operations-web", "web-leptos-fullstack": "application-http",
+            "web-dioxus": "operations-web",
+        }
+        self.assertEqual(profiles.keys(), expected.keys())
+        for profile, descriptor in profiles.items():
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory() as temporary:
+                project = Path(temporary) / "generated"
+                shutil.copytree(ROOT / "templates" / profile, project, symlinks=True)
+                requested = ["application-core"]
+                ordered = resolve(modules, requested, profile, set(descriptor["targets"]))
+                while needed := integration.plan(profile, "application", ordered, modules):
+                    requested.extend(sorted(needed))
+                    ordered = resolve(modules, requested, profile, set(descriptor["targets"]))
+                manifests, interfaces = integration.install(
+                    project, profile, ordered, modules, name="contract-app", merge=merge,
+                )
+                self.assertIn(expected[profile], interfaces)
+                self.assertTrue(manifests)
+
+    def test_missing_duplicate_and_noop_integration_anchors_are_rejected(self):
+        for source, replacement in [("", "replacement"), ("marker marker", "replacement"), ("marker", "marker")]:
+            with self.subTest(source=source), self.assertRaises(integration.IntegrationError):
+                integration.replace_once(Path("main.rs"), source, "marker", replacement)
+
+    def test_generated_guide_detects_unselected_operation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            modules = {"core": {"documentation": "docs/core.md", "description": "Core", "files": ["docs/core.md"]}}
+            report = {"profile": "cli", "preset": "application", "entrypoints": ["operations-cli"], "modules": {"core": "1"}}
+            guide = root / "docs/COMPOSITION.md"
+            guide.parent.mkdir()
+            (root / "docs/core.md").touch()
+            guide.write_text(composition_guide("cli", "application", ["operations-cli", "mcp-stdio"], modules))
+            self.assertIn("generated composition guide diverges", next(project_contract(root, report, modules)))
+            guide.write_text(composition_guide("cli", "application", ["operations-cli"], modules))
+            self.assertEqual([], list(project_contract(root, report, modules)))
 
     def test_hybrid_checks_both_targets(self):
         calls = []

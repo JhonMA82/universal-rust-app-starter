@@ -11,4 +11,6 @@ or its portable copy. Gemini continues to import the same AGENTS contract.
 
 Choose retention and authorization before exposing operations. Each domain
 defines its own format, version and migrations. Commit the resulting lockfile
-and run the existing tests and `cargo xtask verify`.
+and run the existing tests. If the composition includes `engineering-tools`,
+run `cargo xtask verify`. Read the generated composition guide for the
+entrypoints in the new project, including any selected automation adapter.

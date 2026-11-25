@@ -381,12 +381,24 @@ impl View for NotesView {
             return;
         }
         ui.horizontal_wrapped(|ui| {
-            if ui.button("New note").clicked()
+            let new_note = ui.button("New note").on_hover_text("Alt+N").clicked();
+            let shortcut = ui.input_mut(|input| {
+                input.consume_key(eframe::egui::Modifiers::ALT, eframe::egui::Key::N)
+            });
+            if (new_note || shortcut)
                 && let Ok(result) = invoke(&self.app, "notes.new", json!({}), None, Some(revision))
                 && let Some(id) = result.result.as_u64()
             {
                 self.current = id;
                 self.draft = None;
+                self.status = (format!("Note {id} created"), false);
+                #[cfg(target_arch = "wasm32")]
+                if let Some(status) = web_sys::window()
+                    .and_then(|window| window.document())
+                    .and_then(|document| document.get_element_by_id("starter-note-status"))
+                {
+                    status.set_text_content(Some(&self.status.0));
+                }
             }
             for note in notes {
                 if ui

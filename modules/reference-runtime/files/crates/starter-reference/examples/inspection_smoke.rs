@@ -28,7 +28,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         write_message(&mut stream, &request)?;
         read_message(&mut stream)
     };
-    let before = expect_tree(call(Request::GetTree)?)?;
+    let before = loop {
+        let tree = expect_tree(call(Request::GetTree)?)?;
+        if tree
+            .nodes
+            .iter()
+            .any(|(_, node)| node.label() == Some("New note"))
+        {
+            break tree;
+        }
+        if Instant::now() >= deadline {
+            return Err("New note button missing after startup".into());
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    std::fs::write(
+        output.with_file_name("native-before.txt"),
+        format!("{before:#?}"),
+    )?;
+    std::fs::write(
+        output.with_file_name("native-before.png"),
+        screenshot(&mut call)?,
+    )?;
     let (id, _) = before
         .nodes
         .iter()
@@ -46,14 +67,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })?,
         Response::Done
     ));
-    let after = expect_tree(call(Request::GetTree)?)?;
-    assert!(
-        after
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let after = loop {
+        let tree = expect_tree(call(Request::GetTree)?)?;
+        if tree
             .nodes
             .iter()
-            .any(|(_, node)| node.label() == Some("Note 2")),
-        "note creation was not visible"
+            .any(|(_, node)| node.label() == Some("Note 2"))
+        {
+            break tree;
+        }
+        if Instant::now() >= deadline {
+            return Err("note creation was not visible".into());
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    std::fs::write(
+        output.with_file_name("native-after.txt"),
+        format!("{after:#?}"),
+    )?;
+    let first = screenshot(&mut call)?;
+    assert_ne!(
+        first,
+        std::fs::read(output.with_file_name("native-before.png"))?
     );
+    std::fs::write(
+        output.with_file_name("native-repeat.png"),
+        screenshot(&mut call)?,
+    )?;
+    std::fs::write(output, first)?;
+    Ok(())
+}
+fn screenshot(
+    call: &mut impl FnMut(Request) -> std::io::Result<Response>,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let Response::Screenshot(image) = call(Request::GetScreenshot {
         pixels_per_point: None,
     })?
@@ -61,8 +108,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("inspection did not return a screenshot".into());
     };
     assert!(image.bytes.starts_with(b"\x89PNG\r\n\x1a\n"));
-    std::fs::write(output, image.bytes)?;
-    Ok(())
+    Ok(image.bytes.to_vec())
 }
 fn expect_tree(response: Response) -> Result<TreeUpdate, Box<dyn std::error::Error>> {
     if let Response::Tree {

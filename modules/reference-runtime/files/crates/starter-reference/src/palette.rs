@@ -28,19 +28,7 @@ impl Palette {
             request_id: None,
             expected_revision: None,
         };
-        let (revision, available) = {
-            let app = app.lock().ok()?;
-            let operations: Vec<_> = app
-                .discover(&session, true)
-                .map(|op| {
-                    (
-                        op.clone(),
-                        app.available(&session, true, &make_request(op, serde_json::json!({}))),
-                    )
-                })
-                .collect();
-            (app.revision(), operations)
-        };
+        let operations: Vec<_> = app.lock().ok()?.discover(&session, true).cloned().collect();
         let mut invoke = None;
         egui::Window::new("Command palette · Ctrl/Cmd+P")
             .open(open)
@@ -52,7 +40,7 @@ impl Palette {
                     .max_height(220.)
                     .show(ui, |ui| {
                         let mut previous = "";
-                        for (operation, enabled) in &available {
+                        for operation in &operations {
                             if !operation.id.contains(&search)
                                 && !operation.description.to_lowercase().contains(&search)
                             {
@@ -64,8 +52,7 @@ impl Palette {
                                 previous = group;
                             }
                             if ui
-                                .add_enabled(
-                                    *enabled,
+                                .add(
                                     egui::Button::new(operation.id)
                                         .selected(self.selected == Some(operation.id)),
                                 )
@@ -78,9 +65,9 @@ impl Palette {
                             }
                         }
                     });
-                if let Some((operation, enabled)) = available
+                if let Some(operation) = operations
                     .iter()
-                    .find(|(item, _)| Some(item.id) == self.selected)
+                    .find(|item| Some(item.id) == self.selected)
                 {
                     ui.separator();
                     ui.label(operation.description);
@@ -96,13 +83,26 @@ impl Palette {
                     if let Some(error) = &self.error {
                         starter_desktop::status(ui, error, true);
                     }
+                    let request = serde_json::from_str(&self.arguments)
+                        .map(|args| make_request(operation, args));
+                    let (revision, enabled) = match app.lock() {
+                        Ok(app) => (
+                            app.revision(),
+                            request
+                                .as_ref()
+                                .map_or(true, |request| app.available(&session, true, request)),
+                        ),
+                        Err(_) => return,
+                    };
+                    if !enabled {
+                        ui.label("Unavailable for the current document or parameters");
+                    }
                     if ui
-                        .add_enabled(*enabled, egui::Button::new("Run operation"))
+                        .add_enabled(enabled, egui::Button::new("Run operation"))
                         .clicked()
                     {
-                        match serde_json::from_str(&self.arguments) {
-                            Ok(args) => {
-                                let mut request = make_request(operation, args);
+                        match request {
+                            Ok(mut request) => {
                                 request.expected_revision = Some(revision);
                                 invoke = Some(request);
                             }
@@ -135,6 +135,40 @@ mod tests {
     use super::*;
     use egui_kittest::{Harness, kittest::Queryable};
     use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn configured_parameters_enable_an_operation() {
+        let mut engine = starter_core::Application::new(0, 2);
+        engine
+            .command(
+                starter_core::Definition {
+                    id: "data.set",
+                    description: "Set data",
+                    permission: "write",
+                    public: true,
+                    available: |_, request| request.parameters.as_i64() == Some(3),
+                },
+                starter_core::Kind::Command,
+                |state, value: i32, _| {
+                    *state = value;
+                    Ok(value)
+                },
+            )
+            .unwrap();
+        let app = Arc::new(Mutex::new(engine));
+        let mut open = true;
+        let mut palette = Palette {
+            selected: Some("data.set"),
+            arguments: "3".into(),
+            ..Default::default()
+        };
+        let mut harness = Harness::new_ui(|ui| {
+            palette.show(ui.ctx(), &mut open, &app, None);
+        });
+        harness.get_by_label("Run operation").click();
+        harness.run();
+        assert_eq!(*app.lock().unwrap().state(), 3);
+    }
 
     #[test]
     fn palette_button_dispatches_registered_operation() {
