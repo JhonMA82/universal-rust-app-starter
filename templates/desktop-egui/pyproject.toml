@@ -1,0 +1,14 @@
+[project]
+name = "egui-visual-forge-tools"
+version = "0.1.0"
+description = "Offline scene and visual comparison tooling for the Egui Visual Forge skills"
+requires-python = ">=3.10"
+dependencies = [
+    "Pillow>=10.0,<13",
+    "numpy>=1.26,<3",
+    "PyYAML>=6.0,<7",
+]
+
+# Tooling only: no Python package is built or published from this project.
+[tool.uv]
+package = false

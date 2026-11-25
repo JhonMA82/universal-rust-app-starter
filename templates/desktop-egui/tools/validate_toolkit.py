@@ -74,9 +74,10 @@ def validate(root: Path) -> list[str]:
             ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
         except SyntaxError as exc:
             problems.append(f"{source}: Python syntax error: {exc}")
-    expected = ["README.md", "docs/SCENE_FORMAT.md", "docs/RESEARCH.md", "tools/visual_check.py",
-                "tools/init_scene.py", "tools/evaluate_runs.py", "tests/test_tools.py",
-                "examples/eframe-starter/Cargo.toml", "LICENSE-EGUI-VISUAL-FORGE"]
+    expected = ["README.md", "pyproject.toml", "docs/SCENE_FORMAT.md", "docs/RESEARCH.md",
+                "tools/visual_check.py", "tools/init_scene.py", "tools/evaluate_runs.py",
+                "tests/test_tools.py", "examples/eframe-starter/Cargo.toml",
+                "LICENSE-EGUI-VISUAL-FORGE"]
     for rel in expected:
         if not (root / rel).is_file():
             problems.append(f"Missing required file {rel}")

@@ -8,7 +8,7 @@ Native egui/eframe application.
 
 - Rust stable (`rustup`, `cargo`, Rust 2024 edition)
 - Python 3.11+ for the offline agent-readiness check
-- Optional: Pillow, NumPy and PyYAML for the Egui Visual Forge screenshot tooling
+- Optional: `uv` (Python 3.10+) for the Egui Visual Forge screenshot tooling
 - Profile-specific tooling only when relevant (see below)
 
 ## Quick start
@@ -36,9 +36,9 @@ Prefer modifying `crates/app` rather than platform runners for shared UI behavio
 The `egui-*` reconstruction skills drive a screenshot-to-egui workflow with bundled comparison tools:
 
 ```sh
-python3 -m pip install -r requirements.txt
-python3 tools/validate_toolkit.py
-python3 -m unittest discover -s tests -v
+uv sync
+uv run python tools/validate_toolkit.py
+uv run python -m unittest discover -s tests -v
 ```
 
-Start with `.agents/skills/egui-reconstruction/SKILL.md` and read `docs/EGUI_VISUAL_FORGE.md`. The example under `examples/eframe-starter` is standalone and targets eframe 0.37; this workspace uses the same version. Python tooling is optional for normal builds.
+Start with `.agents/skills/egui-reconstruction/SKILL.md` and read `docs/EGUI_VISUAL_FORGE.md`. The example under `examples/eframe-starter` is standalone and targets eframe 0.37; this workspace uses the same version. `pyproject.toml` declares the Python tooling dependencies; `uv sync` creates the local environment and `uv.lock`. Python tooling is optional for normal builds.

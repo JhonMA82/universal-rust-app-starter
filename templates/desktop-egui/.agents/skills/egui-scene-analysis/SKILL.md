@@ -2,7 +2,7 @@
 name: egui-scene-analysis
 description: Extracts an evidence-backed, measurable scene specification from one or more application screenshots for egui implementation. Use to analyze geometry, coordinates, typography, visual tokens, uncertain assets, panel hierarchy, and screenshot-state assumptions before coding.
 license: MIT
-compatibility: PNG screenshots; Python 3.10+ with Pillow for initializer.
+compatibility: PNG screenshots; Python 3.10+ managed with uv (Pillow) for the initializer.
 metadata:
   version: "1.0.0"
 ---
@@ -12,7 +12,7 @@ metadata:
 ## Procedure
 
 1. Inspect the image in its native pixel resolution. Record `width_px`, `height_px`, full-window chrome inclusion, content crop and `pixels_per_point`. Do not estimate scale from resolution alone; use evidence or mark an assumption.
-2. Call `python tools/init_scene.py --image screenshot.png --out scene.json --pixels-per-point 1` to create the valid initial manifest. The default value 1 is a **placeholder**, not a measured DPI.
+2. Call `uv run python tools/init_scene.py --image screenshot.png --out scene.json --pixels-per-point 1` to create the valid initial manifest (run `uv sync` once from the project root first). The default value 1 is a **placeholder**, not a measured DPI.
 3. Establish a nested visual hierarchy: root → shell regions → controls/text/assets. Prefer region boundaries that align with edges or repeated spacing lines. Identify z-order for overlays.
 4. Transcribe visible text literally (preserving capitalization and punctuation); list uncertain glyphs, icons, and non-visible interactions as `uncertainties`.
 5. Measure reference rectangles in pixels `[x, y, width, height]` from the **top-left corner** of the image. Define source of every measurement: edge, repeated grid, visible control, or estimate.

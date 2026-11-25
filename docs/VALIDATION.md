@@ -18,8 +18,10 @@ eleven profiles, then exercises the native Workbench and Engineering presets.
 Reference checks build the generated binaries and execute CLI and MCP scenarios. Live MCP checks discovery, authentication, operation execution and
 exit over local Streamable HTTP. Use `--visual` for wgpu gallery and viewport
 captures. Use `--native-window` for an opt-in native inspection test from the
-Document Workbench. Install the Python dependencies listed in
-`templates/desktop-egui/requirements.txt` for Visual Forge. On Linux, the
+Document Workbench. The Visual Forge tooling is a uv project in
+`templates/desktop-egui`: run `uv sync --project templates/desktop-egui` once,
+then run the native verifier with
+`uv run --project templates/desktop-egui python tools/verify_composed.py ...`. On Linux, the
 window needs a display and the X11 keyboard runtime package
 `libxkbcommon-x11-0`. A 96-DPI Xvfb run supplies a virtual display. The
 test uses the development inspection endpoint to find and click a widget,

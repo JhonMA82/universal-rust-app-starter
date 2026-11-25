@@ -31,11 +31,11 @@ Run additional profile-specific checks from README. Report checks you could not 
 
 ## Visual reconstruction
 
-For screenshot-to-egui work, start with `.agents/skills/egui-reconstruction/SKILL.md` and use the bundled `tools/` comparators. Install `requirements.txt` before running them. These checks are optional for normal builds:
+For screenshot-to-egui work, start with `.agents/skills/egui-reconstruction/SKILL.md` and use the bundled `tools/` comparators. Run `uv sync` once from the project root; `uv run` executes them in the managed environment. These checks are optional for normal builds:
 
 ```sh
-python3 tools/validate_toolkit.py
-python3 -m unittest discover -s tests -v
+uv run python tools/validate_toolkit.py
+uv run python -m unittest discover -s tests -v
 ```
 
 The workspace and the bundled example use eframe/egui 0.37. Never claim visual fidelity without a real capture and comparison.

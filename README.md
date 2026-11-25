@@ -69,7 +69,7 @@ python3 scripts/check_agents.py
 
 For a locally unpacked source, execute `cargo generate --path templates/<profile> --name <app-name>` in a parent directory other than the template itself. See each profile README for dependencies and commands.
 
-`desktop-egui` also ships the vendored **Egui Visual Forge** toolkit (MIT): five reconstruction skills, Python comparison tools and a scene-format contract. Python dependencies are optional for normal builds; see the generated `docs/EGUI_VISUAL_FORGE.md`.
+`desktop-egui` also ships the vendored **Egui Visual Forge** toolkit (MIT): five reconstruction skills, Python comparison tools and a scene-format contract. Its Python tooling is a `uv` project (`pyproject.toml` in the template) and is optional for normal builds; see the generated `docs/EGUI_VISUAL_FORGE.md`.
 
 ## Publish this starter to your GitHub account
 

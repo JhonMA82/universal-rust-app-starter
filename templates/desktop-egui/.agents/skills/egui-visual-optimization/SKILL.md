@@ -2,7 +2,7 @@
 name: egui-visual-optimization
 description: Measures and iteratively improves screenshot fidelity of an egui application using unaltered reference/candidate images, region-level metrics, diff heatmaps, causal hypotheses, and explicit acceptance gates. Use after each egui UI capture or when diagnosing mismatched pixels or layout.
 license: MIT
-compatibility: Python 3.10+, Pillow, NumPy; source and candidate PNG files.
+compatibility: Python 3.10+ managed with uv, Pillow, NumPy; source and candidate PNG files.
 metadata:
   version: "1.0.0"
 ---
@@ -12,7 +12,7 @@ metadata:
 ## Execute
 
 1. Read scene metadata, verify source reference hash, state, crop, dimensions and scale. Comparison aborts on dimension mismatch or modified reference.
-2. Run `python tools/visual_check.py --scene scene.json --candidate candidate.png --out qa/iteration-01` from the project root.
+2. Run `uv run python tools/visual_check.py --scene scene.json --candidate candidate.png --out qa/iteration-01` from the project root after one `uv sync`.
 3. Read `report.json` and `report.md`. Inspect `comparison.png` and `heatmap.png`. Treat the summary score as a diagnostic, not an aesthetic certificate.
 4. Rank region failures by impact: major structural edges and missing text before fine borders, shadows and minor colors.
 5. For the top defect, write a causal hypothesis: *observable error → likely layout/style/state cause → proposed minimal code change*.
@@ -37,7 +37,7 @@ Use: `capture/state`, `macro-layout`, `text/typography`, `widget dimensions`, `p
 ## Command and report
 
 ```bash
-python tools/visual_check.py --scene scene.json --candidate candidate.png \
+uv run python tools/visual_check.py --scene scene.json --candidate candidate.png \
   --out qa/iteration-01 --tag with-skills --case-id dashboard-01 --run-id 01 \
   --diagnose-shift 4
 ```

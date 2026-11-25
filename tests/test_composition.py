@@ -63,7 +63,8 @@ class CompositionTests(unittest.TestCase):
         for profile, descriptor in profiles.items():
             with self.subTest(profile=profile), tempfile.TemporaryDirectory() as temporary:
                 project = Path(temporary) / "generated"
-                shutil.copytree(ROOT / "templates" / profile, project, symlinks=True)
+                shutil.copytree(ROOT / "templates" / profile, project, symlinks=True,
+                                ignore=shutil.ignore_patterns(".venv", "uv.lock"))
                 requested = ["application-core"]
                 ordered = resolve(modules, requested, profile, set(descriptor["targets"]))
                 while needed := integration.plan(profile, "application", ordered, modules):

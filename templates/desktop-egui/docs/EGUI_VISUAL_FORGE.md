@@ -28,20 +28,20 @@ Skill sources live in `.agents/skills/`; `.claude/skills/` is a relative symlink
 ## Setup
 
 ```sh
-python3 -m pip install -r requirements.txt
-python3 tools/validate_toolkit.py
-python3 -m unittest discover -s tests -v
+uv sync
+uv run python tools/validate_toolkit.py
+uv run python -m unittest discover -s tests -v
 ```
 
-These checks are optional for normal builds and are not part of the Rust CI. They require Pillow, NumPy and PyYAML.
+These checks are optional for normal builds and are not part of the Rust CI. They require `uv`; the tooling dependencies (Pillow, NumPy and PyYAML) are declared in `pyproject.toml`.
 
 ## Workflow
 
 1. Keep the reference PNG unchanged; record its SHA-256 and `pixels_per_point`.
-2. Create the manifest with `python3 tools/init_scene.py --image reference.png --out scene.json --pixels-per-point 1`, then replace placeholder measurements with evidence.
+2. Create the manifest with `uv run python tools/init_scene.py --image reference.png --out scene.json --pixels-per-point 1`, then replace placeholder measurements with evidence.
 3. Implement the scene with real egui widgets and deterministic initial state.
 4. Capture a candidate with the exact same window content, size, scale, theme and state.
-5. Run `python3 tools/visual_check.py --scene scene.json --candidate candidate.png --out qa/iteration-01`.
+5. Run `uv run python tools/visual_check.py --scene scene.json --candidate candidate.png --out qa/iteration-01`.
 6. Fix the highest-impact region, recapture and compare with unchanged masks and thresholds.
 
 Do not alter the reference, resize either image, shift the candidate for the official score, or loosen gates to make a run pass.

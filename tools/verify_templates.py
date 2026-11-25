@@ -89,7 +89,8 @@ def check_templates() -> list[str]:
             with tempfile.TemporaryDirectory(prefix="agent-check-") as tmp:
                 project = Path(tmp) / name
                 shutil.copytree(base, project,
-                                ignore=shutil.ignore_patterns("target", "__pycache__"))
+                                ignore=shutil.ignore_patterns("target", "__pycache__", ".venv",
+                                                              "uv.lock"))
                 subprocess.run([sys.executable, "scripts/check_agents.py"],
                                check=True, cwd=project, stdout=subprocess.DEVNULL,
                                stderr=subprocess.PIPE)

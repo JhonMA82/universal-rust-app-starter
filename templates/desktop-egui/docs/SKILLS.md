@@ -8,12 +8,12 @@ The eight Rust skills and `egui-visual-validation` are locally authored starter 
 
 ## Egui Visual Forge
 
-The reconstruction skills use the bundled Python tooling. Optional setup and checks:
+The reconstruction skills use the bundled Python tooling. `pyproject.toml` is the uv project for it; optional setup and checks:
 
 ```sh
-python3 -m pip install -r requirements.txt
-python3 tools/validate_toolkit.py
-python3 -m unittest discover -s tests -v
+uv sync
+uv run python tools/validate_toolkit.py
+uv run python -m unittest discover -s tests -v
 ```
 
 Start with `egui-reconstruction`; it delegates to the scene-analysis, UI-engineering, runtime-verification and optimization phases. The profile and the Forge example use eframe/egui 0.37.

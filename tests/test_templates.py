@@ -28,7 +28,8 @@ class StarterTests(unittest.TestCase):
             root=ROOT/'templates'/name
             with tempfile.TemporaryDirectory() as tmp:
                 project=Path(tmp)/'project'
-                shutil.copytree(root,project)
+                shutil.copytree(root,project,
+                                ignore=shutil.ignore_patterns('.venv','uv.lock'))
                 subprocess.run([sys.executable,'scripts/check_agents.py'],cwd=project,
                                check=True,capture_output=True,text=True)
                 link=project/'.claude/skills'
