@@ -6,6 +6,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+from PIL import Image
 import platform
 import subprocess
 import sys
@@ -67,7 +68,10 @@ def verify_page(browser, profile, dist, screenshot):
                 page.get_by_role("button", name="Rename workspace").click()
                 page.get_by_role("heading", name="Browser verification").wait_for()
             assert not errors, errors
-            page.screenshot(path=screenshot)
+            if profile == "desktop-egui-web":
+                canvas.screenshot(path=screenshot)
+            else:
+                page.screenshot(path=screenshot)
         finally:
             page.close()
             server.shutdown()
@@ -99,12 +103,16 @@ def main():
                     result = {"profile": profile, "status": "passed"}
                     try:
                         verify_page(browser, profile, build(profile, Path(temp)), screenshot)
+                        result["interaction"] = "passed"
+                        result["artifact"] = screenshot.name
+                        with Image.open(screenshot) as image:
+                            if all(low == high for low, high in image.convert("RGB").getextrema()):
+                                raise RuntimeError("browser capture is a single color; rendering was not verified")
+                        result["rendering"] = "passed"
                     except FileNotFoundError as exc:
                         result.update(status="blocked", message=str(exc))
                     except (AssertionError, BrowserError, OSError, RuntimeError, subprocess.CalledProcessError) as exc:
                         result.update(status="failed", message=str(exc))
-                    else:
-                        result["artifact"] = screenshot.name
                     result["duration_ms"] = round((time.monotonic() - start) * 1000)
                     report["checks"].append(result)
                     print(result, flush=True)
