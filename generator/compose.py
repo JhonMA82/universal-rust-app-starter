@@ -178,9 +178,7 @@ def composition_guide(profile, preset, interfaces, modules):
     return "\n".join(lines) + "\n"
 
 
-def generate(profile, preset, name, destination, requested=(), targets=(), features=(), reference=None):
-    import tomli_w
-
+def resolve_configuration(profile, preset, name, requested=(), targets=(), features=()):
     profiles = read_json(ROOT / "profiles.json")
     presets = read_json(ROOT / "presets/catalog.json")
     if profile not in profiles or preset not in presets:
@@ -203,6 +201,20 @@ def generate(profile, preset, name, destination, requested=(), targets=(), featu
     if set(features) - declared_features:
         raise CompositionError(f"unsupported features: {sorted(set(features)-declared_features)}")
 
+    integration.entrypoints(profile, ordered, modules)
+    return profiles[profile], sorted(selected_targets), modules, ordered, declared_features
+
+
+def generate(profile, preset, name, destination, requested=(), targets=(), features=(), reference=None,
+             *, verify=None, capabilities=(), product=None):
+    import tomli_w
+    if __package__:
+        from .handbook import write_handbook
+    else:
+        from handbook import write_handbook
+
+    descriptor, selected_targets, modules, ordered, declared_features = resolve_configuration(
+        profile, preset, name, requested, targets, features)
     files, replacements, manifests = {}, set(), {}
     for name_id in ordered:
         module = modules[name_id]
@@ -221,7 +233,7 @@ def generate(profile, preset, name, destination, requested=(), targets=(), featu
         raise CompositionError(f"destination must be new and its parent must exist: {destination}")
     with tempfile.TemporaryDirectory(prefix=".starter-", dir=destination.parent) as tmp:
         subprocess.run(["cargo", "generate", "--path", str(ROOT / "templates" / profile),
-                        "--name", name, "--destination", tmp, "--vcs", "none"], check=True)
+                        "--name", name, "--destination", tmp, "--vcs", "none"], check=True, stdout=sys.stderr)
         project = (Path(tmp) / name).resolve()
         check_files(project, files, replacements)
         for relative, module in files.items():
@@ -246,7 +258,7 @@ def generate(profile, preset, name, destination, requested=(), targets=(), featu
             for doc in ("AGENTS.md", "README.md"):
                 with (project / doc).open("a", encoding="utf-8") as stream:
                     stream.write("\nSee [the generated composition](docs/COMPOSITION.md) for installed capabilities.\n")
-        subprocess.run([sys.executable, "scripts/check_agents.py"], cwd=project, check=True)
+        subprocess.run([sys.executable, "scripts/check_agents.py"], cwd=project, check=True, stdout=sys.stderr)
         verify_autonomy(project)
         metadata = json.loads(subprocess.check_output(
             ["cargo", "metadata", "--no-deps", "--format-version", "1"],
@@ -259,17 +271,26 @@ def generate(profile, preset, name, destination, requested=(), targets=(), featu
         if missing := declared_features - installed_features:
             raise CompositionError(f"missing Cargo features after composition: {sorted(missing)}")
         if interfaces:
-            subprocess.run(["cargo", "fmt", "--all"], cwd=project, check=True)
+            subprocess.run(["cargo", "fmt", "--all"], cwd=project, check=True, stdout=sys.stderr)
         report = {
             "schema_version": 2, "name": name, "profile": profile, "preset": preset,
-            "targets": sorted(selected_targets), "profile_targets": sorted(valid_targets),
-            "wasm_package": profiles[profile].get("wasm_package"), "features": sorted(set(features)),
-            "reference": reference, "entrypoints": interfaces, "modules": {item: modules[item]["version"] for item in ordered},
+            "targets": selected_targets, "profile_targets": sorted(descriptor["targets"]),
+            "wasm_package": descriptor.get("wasm_package"), "features": sorted(set(features)),
+            "reference": reference, "product": product, "capabilities": list(capabilities),
+            "entrypoints": interfaces, "modules": {item: modules[item]["version"] for item in ordered},
             "required_checks": sorted({check for item in ordered for check in modules[item]["checks"]}),
-            "sha256": {p.relative_to(project).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
-                       for p in sorted(project.rglob("*")) if p.is_file() and not p.is_symlink()},
         }
+        write_handbook(project, report, metadata)
+        for doc in ("AGENTS.md", "README.md"):
+            with (project / doc).open("a", encoding="utf-8") as stream:
+                stream.write("\nSee [Getting started](docs/GETTING_STARTED.md) and the [infrastructure inventory](infrastructure.json).\n")
+                if doc == "AGENTS.md":
+                    stream.write("Inspect the generated inventory before adding shared infrastructure or dependencies. Reuse the installed APIs and justify changes that duplicate a responsibility.\n")
+        report["sha256"] = {p.relative_to(project).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                            for p in sorted(project.rglob("*")) if p.is_file() and not p.is_symlink()}
         (project / "generation-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        if verify is not None:
+            verify(project, report)
         if destination.exists() or destination.is_symlink():
             raise CompositionError(f"destination already exists: {destination}")
         project.rename(destination)

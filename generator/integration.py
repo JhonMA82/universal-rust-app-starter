@@ -22,11 +22,38 @@ def plan(profile, preset, ordered, modules):
             needed.add("data-demo")
         elif "documents" in selected:
             needed.add("document-demo")
+        elif "reference-runtime" in selected and "tasks" in selected:
+            needed.add("desktop-product")
     if profile in {"mcp-http", "mcp-stdio"} and "application-core" in selected:
         needed.add("application-mcp")
     if profile in HTTP_PROFILES and "application-core" in selected:
         needed.add("application-http")
     return needed - selected
+
+
+def entrypoints(profile, ordered, modules):
+    selected = set(ordered)
+    providers = [name for name in ordered if modules[name].get("provider") == "desktop-view"]
+    if len(providers) > 1:
+        raise IntegrationError(f"conflicting desktop workspaces: {', '.join(providers)}")
+    if "reference-runtime" in selected:
+        web = ["operations-web"] if profile == "desktop-egui-web" else []
+        mcp = ["mcp-stdio", "mcp-live-http"] if "application-mcp" in selected else []
+        return web + ["desktop", "operations-cli"] + mcp
+    if "application-core" not in selected:
+        return []
+    if profile == "cli":
+        return (["mcp-stdio"] if "application-mcp" in selected else []) + ["operations-cli"]
+    if profile in HTTP_PROFILES:
+        return ["application-http"]
+    if profile in {"mcp-stdio", "mcp-http"}:
+        return [profile]
+    return [{
+        "library": "operations-api",
+        "mcp-client": "operations-cli-companion",
+        "web-leptos-csr": "operations-web",
+        "web-dioxus": "operations-web",
+    }[profile]]
 
 
 def guides(profile, interfaces):
@@ -97,6 +124,10 @@ def install(project: Path, profile, ordered, modules, *, name, merge):
                   cargo_dependency("starter-mcp", "../starter-mcp", optional=True))
             merge(changed[RUNTIME_MANIFEST], {"features": {"mcp": ["dep:starter-mcp"]}})
             runtime_features.append("mcp")
+        if "desktop-product" in selected:
+            merge(changed.setdefault(RUNTIME_MANIFEST, {}),
+                  cargo_dependency("starter-tasks", "../starter-tasks", optional=True))
+            merge(changed[RUNTIME_MANIFEST], {"features": {"tasks": ["dep:starter-tasks"]}})
         if profile == "desktop-egui-web" and "documents" in selected:
             merge(changed.setdefault(RUNTIME_MANIFEST, {}),
                   cargo_dependency("starter-notes", "../starter-notes", optional=True))
@@ -113,7 +144,23 @@ def install(project: Path, profile, ordered, modules, *, name, merge):
         desktop_entry = project / "crates/desktop/src/main.rs"
         replace_once(desktop_entry, desktop_entry.read_text(encoding="utf-8"),
                      "ui_app::TemplateApp::new(cc)", "validated")
-        if providers:
+        if "desktop-product" in selected:
+            if providers:
+                raise IntegrationError("general desktop view conflicts with a specialized workspace")
+            for crate, path in (("starter-reference", "../starter-reference"), ("starter-core", "../starter-core"),
+                                ("starter-desktop", "../starter-desktop")):
+                flags = {"features": [*runtime_features, "tasks"]} if crate == "starter-reference" else {}
+                merge(changed.setdefault(APP_MANIFEST, {}), cargo_dependency(crate, path, **flags))
+            merge(changed[APP_MANIFEST], {
+                "features": {"ui-inspection": ["starter-reference/ui-inspection"]},
+            })
+            adapter.write_text(
+                "mod domain;\nmod view;\n"
+                "pub fn run() -> starter_reference::Result<()> {\n"
+                f"    starter_reference::launch({title}, domain::application(), |_, app| view::WorkspaceView::new(app))\n"
+                "}\n", encoding="utf-8",
+            )
+        elif providers:
             # One host and an application-provided domain view.
             merge(changed.setdefault(APP_MANIFEST, {}), cargo_dependency("starter-demo", "../starter-demo"))
             merge(changed[APP_MANIFEST], {"features": {"ui-inspection": ["starter-demo/ui-inspection"]}})
@@ -307,4 +354,6 @@ pub use starter_core as operations;
             interfaces.append("operations-api")
     if "application-core" in selected and not interfaces:
         raise IntegrationError(f"application-core has no entrypoint for {profile}")
+    if interfaces != entrypoints(profile, ordered, modules):
+        raise IntegrationError(f"entrypoint inventory differs from installed adapters: {interfaces}")
     return changed, interfaces

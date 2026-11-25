@@ -16,6 +16,9 @@
   "documentation": "docs/modules/desktop-shell.md",
   "files": [
     "crates/starter-desktop/Cargo.toml",
+    "crates/starter-desktop/src/components.rs",
+    "crates/starter-desktop/src/design.rs",
+    "crates/starter-desktop/src/gallery.rs",
     "crates/starter-desktop/src/lib.rs",
     "docs/modules/desktop-shell.md"
   ],

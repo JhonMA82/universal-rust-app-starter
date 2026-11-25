@@ -4,6 +4,7 @@ use serde_json::{Value, json};
 use starter_demo_domain::{Derived, Dimensions, Domain, application};
 use starter_desktop::Panel;
 use starter_reference::{Shared, View, invoke};
+use starter_tasks::{Job, Pool};
 use starter_viewport_core::{Mesh, Scene, Vec3};
 struct Engineering {
     app: Shared<Domain>,
@@ -14,6 +15,9 @@ struct Engineering {
     derived: Derived,
     metrics: (usize, f64, bool),
     selected: bool,
+    pool: Pool,
+    job: Option<Job<f64, String>>,
+    background_result: Option<(u64, f64)>,
     status: (String, bool),
 }
 impl Engineering {
@@ -33,7 +37,17 @@ impl View for Engineering {
         self.status.clone()
     }
     fn tick(&mut self) {
-        let dim = *self.app.lock().expect("application mutex").state().value();
+        let (dim, revision) = {
+            let app = self.app.lock().expect("application mutex");
+            (*app.state().value(), app.revision())
+        };
+        if let Some(result) = self.job.as_mut().and_then(|job| job.poll(revision)) {
+            self.job = None;
+            match result {
+                Ok(volume) => self.background_result = Some((revision, volume)),
+                Err(error) => self.status = (format!("Background calculation: {error:?}"), false),
+            }
+        }
         let next = self.derived.update(dim);
         if next.0 > 0 {
             self.metrics = next;
@@ -61,6 +75,32 @@ impl View for Engineering {
             let app = self.app.lock().expect("application mutex");
             (*app.state().value(), app.revision())
         };
+        ui.horizontal_wrapped(|ui| {
+            if let Some(job) = &self.job {
+                starter_desktop::progress(ui, f32::from(job.progress()) / 10_000.0);
+                if ui.button("Cancel calculation").clicked() {
+                    job.cancel();
+                }
+            } else if ui.button("Calculate volume in background").clicked() {
+                match self
+                    .pool
+                    .start(revision, move |control| -> Result<f64, String> {
+                        control.report(10_000);
+                        Ok(dim.volume())
+                    }) {
+                    Ok(job) => self.job = Some(job),
+                    Err(error) => self.status = (error.to_string(), true),
+                }
+            }
+            if let Some((source, volume)) = self
+                .background_result
+                .filter(|(source, _)| *source == revision)
+            {
+                ui.label(format!(
+                    "Background result at revision {source}: {volume:.6} m³"
+                ));
+            }
+        });
         ui.horizontal_wrapped(|ui| {
             for (name, dimension) in [
                 ("Width ", &mut self.draft.width_m),
@@ -138,6 +178,9 @@ pub fn run() -> starter_reference::Result<()> {
             derived: Derived::default(),
             metrics: (0, 4., true),
             selected: false,
+            pool: Pool::new(1),
+            job: None,
+            background_result: None,
             status: ("Ready".into(), false),
         }
     })

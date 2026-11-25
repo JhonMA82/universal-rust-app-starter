@@ -22,6 +22,7 @@
     "crates/starter-reference/examples/inspection_smoke.rs",
     "crates/starter-reference/src/lib.rs",
     "crates/starter-reference/src/palette.rs",
+    "crates/starter-reference/src/task_panel.rs",
     "docs/modules/reference-runtime.md"
   ],
   "features": [

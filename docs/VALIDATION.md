@@ -9,9 +9,14 @@ python3 -m unittest discover -s tests -v
 python3 tools/check_docs.py
 python3 tools/verify_templates.py --generate --cargo-check
 python3 tools/verify_composed.py --ordinary --evidence evidence/ordinary.json
+python3 tools/verify_domain_scenarios.py --evidence evidence/domain-scenarios.json
 python3 tools/verify_composed.py --evidence evidence/references.json
 python3 tools/verify_composed.py --hybrid --evidence evidence/hybrid.json
 ```
+
+The Domain-first scenarios extend four ordinary compositions and smoke-test
+the new operations, document storage, data processing and engineering automation.
+The evidence records the work performed in each generated workspace.
 
 The ordinary matrix generates and checks Minimal and Application for all
 eleven profiles, then exercises the native Workbench and Engineering presets.

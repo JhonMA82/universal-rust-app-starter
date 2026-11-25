@@ -1,5 +1,8 @@
 # Modular generation
 
+See the [product guide](PRODUCT_GUIDE.md) for capability-first creation.
+The previous compositor interface remains available for explicit module selection.
+
 Install Cargo Generate 0.26.0 and Python 3.11 or later. Install the composer's
 pinned TOML writer with `python3 -m pip install -r generator/requirements.txt`.
 

@@ -18,3 +18,9 @@ revision, and the engine checks permissions and availability again on dispatch.
 Applications can register a typed panel instance through `View::panels`.
 Use stable numeric instance IDs and stable kinds to keep layouts restorable.
 Panels with floating enabled become native viewports or embedded browser windows.
+
+For product views, supply your own workspace defaults with
+`View::initial_workspace` and provide product colors with `View::design`.
+The user's saved layout and appearance preferences still apply. Design
+overrides only the selected accent; the UI kit owns the base typography,
+spacing, radii and semantic feedback colors.

@@ -1,0 +1,11 @@
+{
+  "operations": {"modules":["application-core"],"description":"Typed domain operations, revisions and permissions"},
+  "desktop-ui": {"modules":["desktop-shell"],"description":"Desktop shell, component gallery, docking and preferences"},
+  "documents": {"modules":["documents"],"profiles":["desktop-egui","desktop-egui-web"],"description":"Notes editor and document history","limitations":["Desktop includes save and recovery. Browser notes use in-memory storage."]},
+  "background-work": {"modules":["tasks","desktop-shell"],"profiles":["desktop-egui"],"description":"Native tasks with progress, cancellation and revision-aware results"},
+  "data-visualization": {"modules":["data"],"description":"Data workspace with CSV import/export, plot and table"},
+  "engineering-views": {"modules":["canvas","viewport"],"description":"Integrated 2D and 3D engineering workspace"},
+  "scientific-computation": {"modules":["science","evaluation"],"description":"Libraries for units, numerical validation and incremental computation","limitations":["Adds domain-facing APIs. The engineering workspace is available through engineering-views."]},
+  "automation": {"modules":["application-mcp"],"description":"MCP operations exposed through the existing application registry"},
+  "distribution": {"modules":["distribution","engineering-tools"],"description":"Opt-in artifact packaging and SHA-256 checksums"}
+}

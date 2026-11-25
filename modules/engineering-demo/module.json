@@ -8,7 +8,8 @@
     "documents@0.1.0",
     "evaluation@0.1.0",
     "science@0.1.0",
-    "reference-runtime@0.1.0"
+    "reference-runtime@0.1.0",
+    "tasks@0.1.0"
   ],
   "profiles": [
     "desktop-egui"
@@ -88,6 +89,9 @@
         },
         "starter-viewport-egui": {
           "path": "../starter-viewport-egui"
+        },
+        "starter-tasks": {
+          "path": "../starter-tasks"
         }
       }
     }

@@ -20,7 +20,7 @@ web-sys = { version = "0.3", features = ["Document", "Element", "Window"], optio
 ui-inspection = ["dep:egui_inspection"]
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("mcp", "notes"))'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("mcp", "notes", "tasks"))'] }
 
 [[example]]
 name = "inspection_smoke"

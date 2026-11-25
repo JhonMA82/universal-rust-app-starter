@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 mod palette;
+#[cfg(all(feature = "tasks", not(target_arch = "wasm32")))]
+mod task_panel;
 use serde_json::{Value, json};
 use starter_core::{Application, Error, Request, Response, Session};
 use starter_desktop::{Panel, Shell};
@@ -7,6 +9,8 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+#[cfg(all(feature = "tasks", not(target_arch = "wasm32")))]
+pub use task_panel::TaskPanel;
 pub type Shared<S> = Arc<Mutex<Application<S>>>;
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 pub fn local_session() -> Session {
@@ -46,6 +50,12 @@ pub trait View {
     fn tick(&mut self) {}
     fn active_document(&self) -> Option<u64> {
         None
+    }
+    fn design(&self) -> starter_desktop::Design {
+        starter_desktop::Design::default()
+    }
+    fn initial_workspace(&self) -> starter_desktop::Workspace {
+        starter_desktop::Workspace::default()
     }
     fn panels(&self) -> &[starter_desktop::PanelSpec] {
         &[]
@@ -106,8 +116,9 @@ pub fn window<V: View + 'static, S: 'static>(
         .storage
         .and_then(|s| s.get_string("starter-workspace"))
         .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or_default();
-    let shell = Shell::with_panels(workspace, view.panels());
+        .unwrap_or_else(|| view.initial_workspace());
+    let mut shell = Shell::with_panels(workspace, view.panels());
+    shell.set_design(view.design());
     Window {
         shell,
         view,
@@ -137,6 +148,10 @@ struct SettingsView {
     app: Shared<starter_core::sample::Settings>,
     draft: String,
     status: (String, bool),
+    #[cfg(all(feature = "tasks", not(target_arch = "wasm32")))]
+    task: TaskPanel,
+    #[cfg(all(feature = "tasks", not(target_arch = "wasm32")))]
+    draft_revision: u64,
 }
 impl SettingsView {
     fn new(app: Shared<starter_core::sample::Settings>) -> Self {
@@ -144,6 +159,10 @@ impl SettingsView {
             app,
             draft: String::new(),
             status: ("Ready".into(), false),
+            #[cfg(all(feature = "tasks", not(target_arch = "wasm32")))]
+            task: TaskPanel::default(),
+            #[cfg(all(feature = "tasks", not(target_arch = "wasm32")))]
+            draft_revision: 0,
         }
     }
 }
@@ -156,9 +175,11 @@ impl View for SettingsView {
         if panel == Panel::Inspector {
             ui.label(format!("Revision {}", app.revision()));
         } else {
-            let label = ui.label("Workspace name");
-            ui.text_edit_singleline(&mut self.draft)
-                .labelled_by(label.id);
+            let _input = starter_desktop::field(ui, "Workspace name", &mut self.draft);
+            #[cfg(all(feature = "tasks", not(target_arch = "wasm32")))]
+            if _input.changed() {
+                self.draft_revision = self.draft_revision.saturating_add(1);
+            }
             if ui.button("Rename workspace").clicked() {
                 self.status = match starter_core::sample::invoke(
                     &mut app,
@@ -169,6 +190,8 @@ impl View for SettingsView {
                     Err(error) => (error.message, true),
                 };
             }
+            #[cfg(all(feature = "tasks", not(target_arch = "wasm32")))]
+            self.task.show(ui, &self.draft, self.draft_revision);
         }
     }
     fn status(&self) -> (String, bool) {

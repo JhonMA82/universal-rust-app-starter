@@ -64,6 +64,7 @@ jobs:
       - run: cargo install cargo-generate --version 0.26.0 --locked
       - run: python tools/check_docs.py
       - run: python tools/verify_composed.py --ordinary --evidence evidence/ordinary.json
+      - run: python tools/verify_domain_scenarios.py --evidence evidence/domain-scenarios.json
       - run: python tools/verify_composed.py --hybrid --evidence evidence/result.json
       - run: cargo install trunk --version 0.22.2 --locked
       - name: Install Dioxus CLI

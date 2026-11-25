@@ -1,4 +1,16 @@
 #![forbid(unsafe_code)]
+mod components;
+mod design;
+mod gallery;
+
+pub use components::{
+    DialogChoice, Tone, confirmation, dismissible_notice, empty_state, field, icon_button, loading,
+    notice, progress, property_grid, search_field, status, unit_field,
+};
+pub use design::{Design, Tokens};
+pub use egui;
+pub use gallery::Gallery;
+
 use egui::{Context, Ui};
 use egui_dock::{DockArea, DockState, Node, NodeIndex, TabViewer, Tree};
 use serde::{Deserialize, Serialize};
@@ -148,116 +160,6 @@ impl Layout {
         }
     }
 }
-#[derive(Clone, Copy, Serialize, Deserialize)]
-pub struct Tokens {
-    pub dark: bool,
-    pub compact: bool,
-    pub spanish: bool,
-}
-impl Default for Tokens {
-    fn default() -> Self {
-        Self {
-            dark: true,
-            compact: false,
-            spanish: false,
-        }
-    }
-}
-impl Tokens {
-    pub fn label(self, en: &'static str, es: &'static str) -> &'static str {
-        if self.spanish { es } else { en }
-    }
-    pub fn apply(self, ctx: &Context) {
-        ctx.set_theme(if self.dark {
-            egui::Theme::Dark
-        } else {
-            egui::Theme::Light
-        });
-        ctx.style_mut_of(ctx.theme(), |style| {
-            let gap = if self.compact { 4.0 } else { 8.0 };
-            style.spacing.item_spacing = egui::vec2(gap, gap);
-            style.spacing.button_padding = egui::vec2(gap + 1.0, gap / 2.0);
-            style.spacing.interact_size.y = if self.compact { 23.0 } else { 30.0 };
-            style.text_styles.insert(
-                egui::TextStyle::Heading,
-                egui::FontId::proportional(if self.compact { 19. } else { 23. }),
-            );
-            style.text_styles.insert(
-                egui::TextStyle::Body,
-                egui::FontId::proportional(if self.compact { 13. } else { 15. }),
-            );
-            style.visuals.error_fg_color = if self.dark {
-                egui::Color32::from_rgb(255, 158, 166)
-            } else {
-                egui::Color32::from_rgb(150, 26, 42)
-            };
-            style.visuals.warn_fg_color = if self.dark {
-                egui::Color32::from_rgb(249, 210, 121)
-            } else {
-                egui::Color32::from_rgb(112, 66, 4)
-            };
-            style.visuals.selection.stroke.width = 1.5;
-            style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(4);
-            style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(4);
-        });
-    }
-}
-pub fn progress(ui: &mut Ui, progress: f32) {
-    ui.add(egui::ProgressBar::new(progress.clamp(0.0, 1.0)).show_percentage());
-}
-
-pub fn unit_field(
-    ui: &mut Ui,
-    label: &str,
-    unit: &str,
-    value: &mut f64,
-    range: std::ops::RangeInclusive<f64>,
-) -> egui::Response {
-    ui.add(
-        egui::DragValue::new(value)
-            .range(range)
-            .prefix(label)
-            .suffix(unit),
-    )
-}
-
-pub fn status(ui: &mut Ui, message: &str, error: bool) {
-    if error {
-        ui.colored_label(ui.visuals().error_fg_color, message);
-    } else {
-        ui.label(message);
-    }
-}
-#[derive(Default)]
-pub struct Gallery {
-    grid: bool,
-    level: u32,
-    text: String,
-}
-impl Gallery {
-    pub fn show(&mut self, ui: &mut Ui, tokens: Tokens) {
-        ui.heading(tokens.label("Components", "Componentes"));
-        ui.checkbox(
-            &mut self.grid,
-            tokens.label("Show grid", "Mostrar cuadrícula"),
-        );
-        ui.add(
-            egui::TextEdit::singleline(&mut self.text)
-                .hint_text(tokens.label("Filter text", "Filtrar texto")),
-        );
-        ui.add(egui::Slider::new(&mut self.level, 0..=100).text(tokens.label("Level", "Nivel")));
-        progress(ui, self.level as f32 / 100.0);
-        let mut sample = self.level as f64 / 10.;
-        if unit_field(ui, "Length ", " m", &mut sample, 0.0..=10.0).changed() {
-            self.level = (sample * 10.).round() as u32;
-        }
-        ui.add_enabled(
-            false,
-            egui::Button::new(tokens.label("Disabled", "Deshabilitado")),
-        );
-        status(ui, tokens.label("Invalid value", "Valor inválido"), true);
-    }
-}
 #[derive(Default, Serialize, Deserialize)]
 pub struct Workspace {
     pub layout: Layout,
@@ -272,6 +174,7 @@ pub struct Shell {
     pub workspace: Workspace,
     dock: DockState<Panel>,
     gallery: Gallery,
+    design: Design,
     preferences: bool,
     pub commands_open: bool,
     panels: BTreeMap<u64, PanelSpec>,
@@ -328,6 +231,7 @@ impl Shell {
             workspace,
             dock,
             gallery: Gallery::default(),
+            design: Design::default(),
             preferences: false,
             commands_open: false,
             panels,
@@ -336,6 +240,10 @@ impl Shell {
             approved_close: false,
             save_requested: false,
         }
+    }
+
+    pub fn set_design(&mut self, design: Design) {
+        self.design = design;
     }
 
     pub fn take_save_request(&mut self) -> bool {
@@ -383,7 +291,7 @@ impl Shell {
     ) {
         let ctx = ui.ctx().clone();
         let tokens = self.workspace.tokens;
-        tokens.apply(&ctx);
+        self.design.apply(&ctx, tokens);
         if ctx.input_mut(|i| {
             i.consume_shortcut(&egui::KeyboardShortcut::new(
                 egui::Modifiers::COMMAND,
@@ -397,7 +305,7 @@ impl Shell {
             self.confirm_close = true;
         }
         egui::Panel::top("starter-toolbar").show(ui, |ui| {
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.heading(title);
                 self.commands_open |= ui.button(tokens.label("Commands", "Comandos")).clicked();
                 self.preferences |= ui
@@ -437,6 +345,7 @@ impl Shell {
                 &mut Viewer {
                     tokens,
                     gallery: &mut self.gallery,
+                    design: self.design,
                     panels: &self.panels,
                     show: &mut show,
                 },
@@ -511,36 +420,33 @@ impl Shell {
             }
         }
         if self.confirm_close {
-            egui::Window::new(tokens.label("Unsaved changes", "Cambios sin guardar")).show(
+            let choice = confirmation(
                 &ctx,
-                |ui| {
-                    if ui
-                        .button(tokens.label("Continue editing", "Seguir editando"))
-                        .clicked()
-                    {
-                        self.confirm_close = false;
-                    }
-                    if ui
-                        .button(tokens.label("Save and close", "Guardar y cerrar"))
-                        .clicked()
-                    {
-                        self.save_requested = true;
-                    }
-                    if ui
-                        .button(tokens.label("Discard and close", "Descartar y cerrar"))
-                        .clicked()
-                    {
-                        self.approved_close = true;
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                    }
-                },
+                egui::Id::unique("starter-confirm-close"),
+                tokens.label("Unsaved changes", "Cambios sin guardar"),
+                tokens.label(
+                    "Choose what to do with your edits.",
+                    "Elige qué hacer con los cambios.",
+                ),
+                (
+                    tokens.label("Continue editing", "Seguir editando"),
+                    tokens.label("Save and close", "Guardar y cerrar"),
+                    Some(tokens.label("Discard and close", "Descartar y cerrar")),
+                ),
             );
+            match choice {
+                Some(DialogChoice::Cancel) => self.confirm_close = false,
+                Some(DialogChoice::Primary) => self.save_requested = true,
+                Some(DialogChoice::Secondary) => self.finish_close(&ctx),
+                None => {}
+            }
         }
     }
 }
 struct Viewer<'a, F> {
     tokens: Tokens,
     gallery: &'a mut Gallery,
+    design: Design,
     panels: &'a BTreeMap<u64, PanelSpec>,
     show: &'a mut F,
 }
@@ -560,7 +466,7 @@ impl<F: FnMut(Panel, &mut Ui)> TabViewer for Viewer<'_, F> {
     }
     fn ui(&mut self, ui: &mut Ui, tab: &mut Panel) {
         if *tab == Panel::Gallery {
-            self.gallery.show(ui, self.tokens);
+            self.gallery.show_with_design(ui, self.tokens, self.design);
         } else {
             (self.show)(*tab, ui);
         }
@@ -651,6 +557,19 @@ mod tests {
             h.get_by_label("Show grid").accesskit_node().toggled(),
             Some(egui::accesskit::Toggled::True)
         );
+        h.get_by_label("Preview level");
+    }
+    #[test]
+    fn gallery_reuses_state_widgets_after_switching_sections() {
+        let mut gallery = Gallery::default();
+        let mut h = Harness::new_ui(|ui| gallery.show(ui, Tokens::default()));
+        h.get_by_label("States").click();
+        h.run_steps(2);
+        h.get_by_label("No items");
+        h.get_by_label("Invalid value");
+        h.get_by_label("Properties").click();
+        h.run();
+        h.get_by_label("Length");
     }
     #[cfg(all(feature = "visual-evidence", not(target_arch = "wasm32")))]
     #[test]

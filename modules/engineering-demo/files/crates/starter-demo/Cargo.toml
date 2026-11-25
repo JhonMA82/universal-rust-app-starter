@@ -7,6 +7,7 @@ publish = false
 [dependencies]
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "wgpu"] }
 starter-reference = { path = "../starter-reference" }
+starter-tasks = { path = "../starter-tasks" }
 starter-desktop = { path = "../starter-desktop" }
 starter-demo-domain = { path = "../starter-demo-domain" }
 serde_json = "1"

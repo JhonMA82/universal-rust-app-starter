@@ -1,0 +1,48 @@
+{
+  "id": "desktop-product",
+  "version": "0.1.0",
+  "description": "Desktop application-owned domain and view with a working background task",
+  "profiles": [
+    "desktop-egui"
+  ],
+  "targets": [
+    "native"
+  ],
+  "kind": "application",
+  "license": "MIT OR Apache-2.0",
+  "provenance": "Starter-authored demonstration",
+  "dependencies": [
+    "reference-runtime@0.1.0",
+    "tasks@0.1.0"
+  ],
+  "conflicts": [
+    "data-demo",
+    "document-demo",
+    "engineering-demo"
+  ],
+  "files": [
+    "crates/app/src/domain.rs",
+    "crates/app/src/view.rs",
+    "docs/modules/desktop-product.md"
+  ],
+  "documentation": "docs/modules/desktop-product.md",
+  "features": [],
+  "cargo_dependencies": {},
+  "checks": [
+    "cargo test --workspace"
+  ],
+  "manifests": {
+    "crates/app/Cargo.toml": {
+      "dependencies": {
+        "serde": {
+          "version": "1",
+          "features": [
+            "derive"
+          ]
+        },
+        "schemars": "1",
+        "serde_json": "1"
+      }
+    }
+  }
+}

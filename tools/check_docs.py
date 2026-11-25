@@ -63,6 +63,30 @@ def project_contract(root, report, modules):
                 yield f"{name}: generated payload missing {payload}"
 
 
+def inventory_errors(root, report):
+    path = root / "infrastructure.json"
+    if not path.is_file():
+        yield "infrastructure inventory is missing"
+        return
+    inventory = read_json(path)
+    for key in ("profile", "preset", "targets", "modules", "entrypoints", "capabilities"):
+        if inventory.get(key) != report.get(key):
+            yield f"infrastructure inventory differs from generation report for {key}"
+    expected_skills = sorted(file.relative_to(root).as_posix() for file in (root / ".agents/skills").glob("*/SKILL.md"))
+    if inventory["skills"] != expected_skills:
+        yield "infrastructure inventory differs from installed skills"
+    paths = [*inventory["skills"], *inventory["docs"], *inventory["product_sources"]]
+    if inventory["visual_forge"]:
+        paths.append(inventory["visual_forge"])
+    for package in inventory["crates"].values():
+        paths.append(package["manifest"])
+        paths.extend(target["source"] for target in package["targets"])
+    for filename in paths:
+        resolved = (root / filename).resolve()
+        if not resolved.is_relative_to(root) or not resolved.is_file():
+            yield f"invalid inventory path: {filename}"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true", help="regenerate the module table")
@@ -76,6 +100,7 @@ def main():
         files.extend((root / "docs").rglob("*.md"))
         files.extend((root / ".agents/skills").rglob("*.md"))
         errors.extend(project_contract(root, report, catalog()))
+        errors.extend(inventory_errors(root, report))
     else:
         modules = catalog()
         profiles = read_json(ROOT / "profiles.json")

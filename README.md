@@ -2,32 +2,31 @@
 
 **A practical, multi-profile Rust application generator with agent-ready defaults.** This repository contains standalone subtemplates, not a runtime dependency for generated apps. Inspired by Rust AI-Driven Pipeline, efficient-egui-template (architecture only; PolyForm Noncommercial; no code copied), and rust_template (generation pattern only).
 
-## Generate a project
+## Create and start developing
 
-Choose a profile by entrypoint. Use `minimal` for the original program,
-`application` for an operation registry connected to that profile,
-`workbench` for the document workspace, or `engineering` for the native
-engineering workspace. The latter two presets require a compatible desktop
-profile.
+Install Rust, Cargo Generate 0.26 and uv. The interactive command shows
+application types, eligible capabilities and a composition preview.
 
 ```sh
 cargo install cargo-generate --version 0.26.0 --locked
-python3 -m pip install -r generator/requirements.txt
-python3 generator/compose.py --profile cli --preset application --module application-mcp --name my-tool --destination ../my-tool
-cd ../my-tool
-cargo test --workspace
-cargo run -- --operations
+uv run --with-requirements generator/requirements.txt python starter.py create
 ```
 
-For a complete application example, select `--reference document-workbench`,
-`--reference data-explorer` or `--reference engineering-workbench` in place
-of the profile, preset and module options. From the generated directory, run
-`cargo run -p desktop`. Each composed project with modules includes `AGENTS.md` and
-`docs/COMPOSITION.md` for development and automation.
+For scripts or agents, select a product and capabilities explicitly.
 
-See the [generator guide](docs/GENERATOR.md), [module catalog](docs/MODULE_CATALOG.md),
-[known limitations](docs/KNOWN_LIMITATIONS.md),
-[profile compatibility](docs/PROFILE_MATRIX.md), [validation](docs/VALIDATION.md) and [migration](docs/MIGRATION_V2.md).
+```sh
+uv run --with-requirements generator/requirements.txt python starter.py create --product desktop-application --name my-app --capability automation --verify
+cd my-app
+cargo run -p desktop
+```
+
+Open the generated `docs/GETTING_STARTED.md` and `infrastructure.json`.
+Desktop Application puts your operations in `crates/app/src/domain.rs` and
+your views in `crates/app/src/view.rs`.
+
+See [products and capabilities](docs/PRODUCT_GUIDE.md),
+[generator internals](docs/GENERATOR.md), [reuse decisions](docs/REUSE_MATRIX.md),
+[validation](docs/VALIDATION.md) and [migration](docs/MIGRATION_V2.md).
 
 ## Profiles
 
