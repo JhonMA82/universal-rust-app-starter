@@ -2,13 +2,12 @@
 """Exercise project-owned features in four ordinary composed native applications."""
 import argparse
 import json
-import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import tempfile
 import time
+from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -254,16 +253,24 @@ def run(name, parent, outcome):
     subprocess.run(["cargo", "test", *[option for package in packages for option in ("-p", package)]],
                    cwd=project, check=True)
     if scenario:
-        binary = project / ("domain-probe.exe" if os.name == "nt" else "domain-probe")
-        build = subprocess.run(["cargo", "build", "-p", "desktop", "--message-format=json-render-diagnostics"],
-                               cwd=project, stdout=subprocess.PIPE, check=True, text=True)
+        # A private auto-discovered example exercises the actual desktop main.
+        # Its name avoids collisions with parallel verifiers sharing CARGO_TARGET_DIR.
+        name = f"domain_probe_{uuid4().hex}"
+        desktop = project / "crates/desktop"
+        probe = desktop / "examples" / f"{name}.rs"
+        probe.parent.mkdir(exist_ok=True)
+        probe.write_bytes((desktop / "src/main.rs").read_bytes())
+        build = subprocess.run(
+            ["cargo", "build", "-p", "desktop", "--example", name,
+             "--message-format=json-render-diagnostics"],
+            cwd=project, stdout=subprocess.PIPE, check=True, text=True,
+        )
         executable, = [
             row["executable"] for line in build.stdout.splitlines()
             if (row := json.loads(line)).get("reason") == "compiler-artifact"
-            and row["target"]["kind"] == ["bin"] and row["target"]["name"] == "desktop"
+            and row["target"]["kind"] == ["example"] and row["target"]["name"] == name
         ]
-        # Each scenario has its own executable even when Cargo reuses a shared target directory.
-        shutil.copy2(executable, binary)
+        binary = Path(executable)
         if "mcp-stdio" in report["entrypoints"]:
             mcp(binary, project, scenario)
         else:
