@@ -18,11 +18,15 @@ link=Path('..')/'.agents'/'skills'
 if not a.is_dir():
     bad('Missing .agents/skills')
 else:
+    # cargo-generate cannot copy the symlink and may leave an empty directory behind.
+    empty_artifact = b.is_dir() and not b.is_symlink() and not any(b.iterdir())
     if b.is_symlink():
         target=Path(os.readlink(b))
         if target != link:
             bad(f'.claude/skills points to {target}, expected {link}')
-    elif not b.exists():
+    elif not b.exists() or empty_artifact:
+        if empty_artifact:
+            b.rmdir()
         b.parent.mkdir(parents=True, exist_ok=True)
         try:
             b.symlink_to(link, target_is_directory=True)

@@ -26,6 +26,7 @@
 - Install the MIT-licensed Egui Visual Forge v1.1 toolkit in `desktop-egui`: five `egui-*` skills (canonical in `.agents/skills`, exposed through the Claude symlink), Python scene/comparison tools, scene-format docs, an eframe starter example and toolkit tests.
 - Harden the `desktop-egui` generator config to ignore Python caches and skip Liquid parsing of Python/requirements files.
 - Replace duplicated `.claude/skills` copies with relative symlinks to canonical `.agents/skills`; generated projects recreate the link in `scripts/check_agents.py`.
+- Stop `cargo-generate`'s unsupported-symlink warning: templates no longer ship `.claude/skills`; `scripts/check_agents.py` creates the link after generation and now repairs an empty leftover directory as well as a missing one.
 - Fix generated MCP profiles: declare the `schemars` dependency that `rmcp::schemars::JsonSchema` derive requires in `mcp-stdio` and `mcp-http`.
 - Fix `mcp-client`: import `rmcp::ServiceExt` so `serve`, `list_tools` and `cancel` resolve.
 - Fix `web-leptos-fullstack`: render SSR HTML with `RenderHtml::to_html()` instead of the removed `leptos::ssr::render_to_string`.

@@ -1,6 +1,9 @@
 import importlib.util
 import json
 import os
+import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -20,15 +23,20 @@ class StarterTests(unittest.TestCase):
         for name in ('library','cli','desktop-egui','service-axum','mcp-stdio','web-leptos-csr'):
             self.assertIn(name,profiles)
 
-    def test_claude_skills_symlink_to_agents(self):
+    def test_claude_skills_recreated_to_agents(self):
         for name in mod.PROFILES:
             root=ROOT/'templates'/name
-            link=root/'.claude/skills'
-            self.assertTrue(link.is_symlink(),name)
-            self.assertEqual(os.readlink(link),'../.agents/skills',name)
-            self.assertEqual(link.resolve(),(root/'.agents/skills').resolve(),name)
-            for p in (root/'.agents/skills').glob('*/SKILL.md'):
-                self.assertTrue((link/p.parent.name/'SKILL.md').is_file(),f'{name}: {p.parent.name}')
+            with tempfile.TemporaryDirectory() as tmp:
+                project=Path(tmp)/'project'
+                shutil.copytree(root,project)
+                subprocess.run([sys.executable,'scripts/check_agents.py'],cwd=project,
+                               check=True,capture_output=True,text=True)
+                link=project/'.claude/skills'
+                self.assertTrue(link.is_symlink(),name)
+                self.assertEqual(os.readlink(link),'../.agents/skills',name)
+                self.assertEqual(link.resolve(),(project/'.agents/skills').resolve(),name)
+                for p in (project/'.agents/skills').glob('*/SKILL.md'):
+                    self.assertTrue((link/p.parent.name/'SKILL.md').is_file(),f'{name}: {p.parent.name}')
 
     def test_license_is_complete(self):
         text=(ROOT/'LICENSE-APACHE').read_text()

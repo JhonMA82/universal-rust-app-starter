@@ -13,6 +13,8 @@ class AgentGuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project=Path(tmp)/'project'
             shutil.copytree(source,project)
+            (project/'.claude').mkdir()
+            shutil.copytree(project/'.agents/skills',project/'.claude/skills')
             result=subprocess.run([sys.executable,'scripts/check_agents.py'],cwd=project,
                                   capture_output=True,text=True)
             self.assertNotEqual(result.returncode,0)
@@ -22,9 +24,9 @@ class AgentGuardTests(unittest.TestCase):
         source=ROOT/'templates/cli'
         with tempfile.TemporaryDirectory() as tmp:
             project=Path(tmp)/'project'
-            shutil.copytree(source,project,symlinks=True)
+            shutil.copytree(source,project)
+            (project/'.claude').mkdir()
             link=project/'.claude/skills'
-            link.unlink()
             link.symlink_to('../.agents/missing',target_is_directory=True)
             result=subprocess.run([sys.executable,'scripts/check_agents.py'],cwd=project,
                                   capture_output=True,text=True)
@@ -36,6 +38,8 @@ class AgentGuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project=Path(tmp)/'project'
             shutil.copytree(source,project)
+            (project/'.claude').mkdir()
+            shutil.copytree(project/'.agents/skills',project/'.claude/skills')
             (project/'.claude/skills/.claude-copy-fallback').write_text('no symlink support\n')
             result=subprocess.run([sys.executable,'scripts/check_agents.py'],cwd=project,
                                   capture_output=True,text=True)
@@ -47,7 +51,18 @@ class AgentGuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project=Path(tmp)/'project'
             shutil.copytree(source,project)
-            shutil.rmtree(project/'.claude/skills')
+            result=subprocess.run([sys.executable,'scripts/check_agents.py'],cwd=project,
+                                  capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stdout)
+            self.assertIn('Created .claude/skills',result.stdout)
+            self.assertTrue((project/'.claude/skills').is_symlink())
+
+    def test_repairs_empty_claude_directory(self):
+        source=ROOT/'templates/cli'
+        with tempfile.TemporaryDirectory() as tmp:
+            project=Path(tmp)/'project'
+            shutil.copytree(source,project)
+            (project/'.claude/skills').mkdir(parents=True)
             result=subprocess.run([sys.executable,'scripts/check_agents.py'],cwd=project,
                                   capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stdout)

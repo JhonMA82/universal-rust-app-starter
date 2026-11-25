@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -64,23 +63,11 @@ def check_templates() -> list[str]:
             except Exception as exc:
                 errors.append(f"{name}: TOML {t.relative_to(base)}: {exc}")
         src = base / ".agents" / "skills"
-        mirror = base / ".claude" / "skills"
         skills = sorted(x.parent.name for x in src.glob("*/SKILL.md"))
-        mirrored = sorted(x.parent.name for x in mirror.glob("*/SKILL.md")) if mirror.exists() else []
         expected = sorted(["idiomatic-rust", "ownership-not-clone", "rust-errors", "rust-api-design",
                            "rust-testing", "rust-code-review", "rust-supply-chain", "rust-docs"] + meta["skills"])
         if skills != expected:
             errors.append(f"{name}: skills do not match profile expectations")
-        if not mirror.is_symlink():
-            errors.append(f"{name}: .claude/skills must be a symlink")
-        else:
-            target = Path(os.readlink(mirror))
-            if target != Path("..") / ".agents" / "skills":
-                errors.append(f"{name}: .claude/skills points to {target}")
-            if mirror.resolve() != src.resolve():
-                errors.append(f"{name}: .claude/skills does not resolve to .agents/skills")
-        if skills != mirrored:
-            errors.append(f"{name}: Claude skills are incomplete")
         for skill in skills:
             a = src / skill / "SKILL.md"
             text = a.read_text(encoding="utf-8")
@@ -96,10 +83,16 @@ def check_templates() -> list[str]:
             errors.append(f"{name}: CLAUDE.md does not import contract")
         if "@AGENTS.md" not in (base / "GEMINI.md").read_text():
             errors.append(f"{name}: GEMINI.md does not import contract")
-        # Run the distributed validator itself, not a reimplementation.
+        # Run the distributed validator on a copy: it creates the .claude/skills
+        # link, which must not mutate the template tree.
         try:
-            subprocess.run([sys.executable, str(base / "scripts" / "check_agents.py")],
-                           check=True, cwd=base, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            with tempfile.TemporaryDirectory(prefix="agent-check-") as tmp:
+                project = Path(tmp) / name
+                shutil.copytree(base, project,
+                                ignore=shutil.ignore_patterns("target", "__pycache__"))
+                subprocess.run([sys.executable, "scripts/check_agents.py"],
+                               check=True, cwd=project, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.PIPE)
         except (subprocess.CalledProcessError, OSError) as exc:
             errors.append(f"{name}: distributed agent readiness failed: {exc}")
         for cfg in [base / ".github/workflows/ci.yml", base / ".github/workflows/security.yml"]:

@@ -53,6 +53,7 @@ Install Rust and [cargo-generate](https://cargo-generate.github.io/cargo-generat
 cargo install cargo-generate --locked
 cargo generate --path templates/cli --name my-tool
 cd my-tool
+python3 scripts/check_agents.py
 cargo test
 ```
 
@@ -60,7 +61,11 @@ To generate the original desktop profile directly from GitHub:
 
 ```sh
 cargo generate --git https://github.com/JhonMA82/universal-rust-app-starter templates/desktop-egui --name my-desktop-app
+cd my-desktop-app
+python3 scripts/check_agents.py
 ```
+
+`cargo-generate` cannot copy the `.claude/skills` symlink; the readiness check creates it after generation (copy fallback where symlinks are unavailable).
 
 For a locally unpacked source, execute `cargo generate --path templates/<profile> --name <app-name>` in a parent directory other than the template itself. See each profile README for dependencies and commands.
 
@@ -82,8 +87,8 @@ Use `public` as the second argument if you want the template to be publicly acce
 - Canonical `AGENTS.md` with profile-accurate checks and explicit delivery criteria.
 - `CLAUDE.md` and `GEMINI.md` as minimal adapters.
 - Eight original curated Rust skills, and specialized skills depending on the selected profile.
-- Canonical skills in `.agents/skills`; `.claude/skills` is a relative symlink for cross-client discovery.
-- `python3 scripts/check_agents.py` checks canonical documents, skill frontmatter and the Claude symlink offline; it recreates the link after cargo-generate when needed.
+- Canonical skills in `.agents/skills`; `.claude/skills` is a relative symlink for cross-client discovery, created by the readiness check.
+- `python3 scripts/check_agents.py` checks canonical documents, skill frontmatter and the Claude symlink offline; run it after generation.
 - No hooks install agents, connect accounts, send data or grant permissions automatically.
 
 Skills are written specifically for this starter, with design references to BSD-3-Clause `rewrite-rs/skills`, Apache-2.0 `full-stack-skills/rust-skills`, and Agent Skills specification. No noncommercial code is included. See `docs/SOURCES.md`.
