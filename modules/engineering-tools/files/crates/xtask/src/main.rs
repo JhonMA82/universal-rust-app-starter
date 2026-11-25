@@ -19,7 +19,7 @@ coverage   Run workspace coverage with cargo-llvm-cov
 security   Audit the lockfile with cargo-audit
 inspect    Compile the explicitly enabled desktop inspection adapter
 ui-test    Run the desktop shell tests
-bundle     Package the workspace with the distribution module
+bundle     Package the workspace with the distribution module (accepts --web-dist PATH)
 affected   Check named packages and their native workspace dependents";
 
 fn main() -> ExitCode {
@@ -71,11 +71,24 @@ fn main() -> ExitCode {
         "ui-test" if native && profile["modules"]["desktop-shell"].is_string() => {
             checks.push(run("cargo", &["test", "-p", "starter-desktop"], "native"))
         }
-        "bundle" if profile["modules"]["distribution"].is_string() => checks.push(run(
-            if cfg!(windows) { "python" } else { "python3" },
-            &["scripts/package_release.py"],
-            "native",
-        )),
+        "bundle" if profile["modules"]["distribution"].is_string() => {
+            let extra: Vec<_> = args.collect();
+            let mut command = vec!["scripts/package_release.py"];
+            command.extend(extra.iter().map(String::as_str));
+            let target = if extra
+                .iter()
+                .any(|arg| arg == "--web-dist" || arg.starts_with("--web-dist="))
+            {
+                "web"
+            } else {
+                "native"
+            };
+            checks.push(run(
+                if cfg!(windows) { "python" } else { "python3" },
+                &command,
+                target,
+            ));
+        }
         "fast" | "verify" | "ci" => {
             checks.push(run("cargo", &["fmt", "--all", "--", "--check"], "host"));
             if native {
