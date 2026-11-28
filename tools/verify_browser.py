@@ -33,7 +33,11 @@ def build(profile, work):
     generate(profile, preset, name, project)
     dist = work / f"{profile}-dist"
     if profile == "web-dioxus":
-        subprocess.run(["dx", "build", "--platform", "web"], cwd=project, check=True)
+        # Limit this validation to the generated app and its local browser session.
+        subprocess.run(
+            ["dx", "build", "--platform", "web"], cwd=project, check=True,
+            env={**os.environ, "TELEMETRY": "false"},
+        )
         cargo_target = Path(os.environ.get("CARGO_TARGET_DIR", project / "target"))
         dist = cargo_target / f"dx/{name}/debug/web/public"
     else:

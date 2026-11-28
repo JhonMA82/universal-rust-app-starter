@@ -37,7 +37,8 @@ test uses the development inspection endpoint to find and click a widget,
 checks the updated AccessKit tree, and compares captures with Visual Forge.
 
 Run `python3 tools/verify_browser.py --screenshots evidence/browser` with
-Trunk, Dioxus CLI 0.7.10, Pillow and Playwright Chromium installed. Leptos and Dioxus
+Trunk, Dioxus CLI 0.7.10, Pillow and Playwright Chromium installed. The browser
+verifier sets `TELEMETRY=false` for Dioxus CLI. Leptos and Dioxus
 rename a workspace using the rendered controls. The hybrid app creates two
 notes by keyboard and verifies each announcement before capturing the canvas.
 The verifier rejects a blank capture even when interaction passes. Use `--profile` to retry one case and `--chromium` to use an installed

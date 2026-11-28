@@ -5,6 +5,7 @@ import argparse
 import importlib.util
 import platform
 import json
+import os
 import re
 from pathlib import Path
 import shutil
@@ -115,7 +116,8 @@ def command_output(command):
     if not shutil.which(command[0]):
         return None
     try:
-        result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=10)
+        env = {**os.environ, "TELEMETRY": "false"} if command[0] == "dx" else None
+        result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=10, env=env)
     except (OSError, subprocess.TimeoutExpired):
         return None
     return result.stdout.strip() if result.returncode == 0 else None
