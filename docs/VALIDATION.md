@@ -14,9 +14,11 @@ python3 tools/verify_composed.py --evidence evidence/references.json
 python3 tools/verify_composed.py --hybrid --evidence evidence/hybrid.json
 ```
 
-The Domain-first scenarios extend five ordinary compositions and smoke-test
-the new operations, the typed document session, inspection reports, data
-processing and engineering automation. The evidence records the work performed
+The Domain-first scenarios exercise six generated compositions. The combined
+scenario tests one document and its derived data and geometry in the tank
+workspace. It drives a background calculation through egui's accessibility
+harness and verifies tank edits, queries and undo against the generated MCP
+server. The evidence records the work performed
 in each generated workspace.
 
 The ordinary matrix generates and checks Minimal and Application for all

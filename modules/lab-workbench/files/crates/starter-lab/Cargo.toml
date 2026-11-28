@@ -1,0 +1,29 @@
+[package]
+name = "starter-lab"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "wgpu"] }
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+starter-core = { path = "../starter-core" }
+starter-desktop = { path = "../starter-desktop" }
+starter-documents = { path = "../starter-documents" }
+starter-data = { path = "../starter-data" }
+starter-tasks = { path = "../starter-tasks" }
+starter-evaluation = { path = "../starter-evaluation" }
+starter-science = { path = "../starter-science" }
+starter-canvas = { path = "../starter-canvas" }
+starter-viewport-core = { path = "../starter-viewport-core" }
+starter-viewport-egui = { path = "../starter-viewport-egui" }
+starter-reference = { path = "../starter-reference" }
+
+[features]
+ui-inspection = ["starter-reference/ui-inspection"]
+
+[dev-dependencies]
+egui_kittest = "0.37"

@@ -39,10 +39,21 @@ uv run --with-requirements generator/requirements.txt python starter.py doctor -
 uv run --with-requirements generator/requirements.txt python starter.py create --config project-plan.json --verify
 ```
 
-A native desktop app can switch from the general view to a data, document or
-inspection workspace by enabling the corresponding capability. The CLI rejects a request
-that combines competing ready-made views. The scientific computation capability
-adds libraries. Pair it with `engineering-views` for a complete editor.
+A native desktop app can combine document, data and engineering capabilities
+in one workbench. When two of those views are requested, the combined tank
+workspace provides all three views. Its domain and panel registries are in
+`crates/starter-lab`. Add the automation capability to expose its public
+operations over MCP. Inspection Reports uses the separate Inspection Workbench
+domain. Explicit legacy reference entrypoints are exclusive.
+
+```sh
+python3 starter.py create --product document-workbench --name tank-lab --capability data-visualization --capability engineering-views --capability automation --verify
+cd tank-lab
+cargo run -p desktop
+```
+
+The scientific computation capability adds libraries for domain code. Select
+`engineering-views` to get the engineering views and their integrations.
 The browser-only parts of a hybrid profile still use web-compatible modules
 when you select native-only verification. `--target` selects checks while
 preserving the profile's entrypoints.

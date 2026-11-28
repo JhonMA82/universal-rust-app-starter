@@ -1,0 +1,107 @@
+{
+  "id": "lab-workbench",
+  "version": "0.1.0",
+  "description": "Combined native editor, data panels, engineering views and task results",
+  "dependencies": [
+    "documents@0.1.0",
+    "data@0.1.0",
+    "canvas@0.1.0",
+    "viewport@0.1.0",
+    "tasks@0.1.0",
+    "evaluation@0.1.0",
+    "science@0.1.0",
+    "reference-runtime@0.1.0"
+  ],
+  "profiles": [
+    "desktop-egui"
+  ],
+  "targets": [
+    "native"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "provenance": "Original starter code, see docs/SOURCES.md",
+  "documentation": "docs/modules/lab-workbench.md",
+  "files": [
+    "crates/starter-lab/Cargo.toml",
+    "crates/starter-lab/src/domain.rs",
+    "crates/starter-lab/src/lib.rs",
+    "docs/modules/lab-workbench.md"
+  ],
+  "features": [
+    "starter-lab/ui-inspection"
+  ],
+  "checks": [
+    "cargo test -p starter-lab"
+  ],
+  "conflicts": [],
+  "cargo_dependencies": {
+    "crates/starter-lab/Cargo.toml": {
+      "dependencies": {
+        "eframe": {
+          "version": "0.37",
+          "default-features": false,
+          "features": [
+            "default_fonts",
+            "wgpu"
+          ]
+        },
+        "schemars": "1",
+        "serde": {
+          "version": "1",
+          "features": [
+            "derive"
+          ]
+        },
+        "serde_json": "1",
+        "starter-core": {
+          "path": "../starter-core"
+        },
+        "starter-desktop": {
+          "path": "../starter-desktop"
+        },
+        "starter-documents": {
+          "path": "../starter-documents"
+        },
+        "starter-data": {
+          "path": "../starter-data"
+        },
+        "starter-tasks": {
+          "path": "../starter-tasks"
+        },
+        "starter-evaluation": {
+          "path": "../starter-evaluation"
+        },
+        "starter-science": {
+          "path": "../starter-science"
+        },
+        "starter-canvas": {
+          "path": "../starter-canvas"
+        },
+        "starter-viewport-core": {
+          "path": "../starter-viewport-core"
+        },
+        "starter-viewport-egui": {
+          "path": "../starter-viewport-egui"
+        },
+        "starter-reference": {
+          "path": "../starter-reference"
+        }
+      },
+      "dev-dependencies": {
+        "egui_kittest": "0.37"
+      }
+    }
+  },
+  "manifests": {
+    "Cargo.toml": {
+      "workspace": {
+        "members": [
+          "crates/starter-lab"
+        ],
+        "resolver": "3"
+      }
+    }
+  },
+  "provider": "desktop-view",
+  "kind": "desktop-provider"
+}

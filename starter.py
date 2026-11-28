@@ -3,7 +3,9 @@
 
 import argparse
 import importlib.util
+import platform
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -49,8 +51,6 @@ def plan(request):
     views = set(capabilities).intersection({"documents", "inspection-reports", "data-visualization", "engineering-views"})
     if preset in {"workbench", "engineering"}:
         views.add("documents" if preset == "workbench" else "engineering-views")
-    if len(views) > 1:
-        raise compose.CompositionError("choose one integrated workspace: " + ", ".join(sorted(views)))
     spec = {"profile": profile, "preset": preset, "name": request.get("name") or "my-app",
             "requested": sorted(set(requested)), "targets": request.get("targets", []),
             "features": request.get("features", [])}
@@ -58,10 +58,11 @@ def plan(request):
     expected_workspace = {"inspection-reports": "inspection-demo", "data-visualization": "data-demo", "engineering-views": "engineering-demo"}
     if profile == "desktop-egui":
         expected_workspace["documents"] = "document-demo"
+    combined_views = {"documents", "data-visualization", "engineering-views"} if "lab-workbench" in ordered else set()
     for capability, provider in expected_workspace.items():
-        if capability in views and provider not in ordered:
+        if capability in views - combined_views and provider not in ordered:
             raise compose.CompositionError(f"{capability} requires the {provider} workspace")
-    providers = frozenset(ordered).intersection({"desktop-product", "document-demo", "inspection-demo", "data-demo", "engineering-demo"})
+    providers = frozenset(ordered).intersection({"desktop-product", "document-demo", "inspection-demo", "data-demo", "engineering-demo", "lab-workbench"})
     external = {}
     crates = set()
     manifests = {
@@ -92,9 +93,7 @@ def plan(request):
             continue
         if profile not in capability.get("profiles", PROFILES):
             continue
-        if name == "documents" and profile == "desktop-egui" and "document-demo" not in selected:
-            continue
-        if name in expected_workspace and expected_workspace[name] not in selected:
+        if name in expected_workspace and name not in combined_views and expected_workspace[name] not in selected:
             continue
         if name == "background-work" and not providers:
             continue
@@ -112,13 +111,23 @@ def plan(request):
     }
 
 
-def command_available(command):
+def command_output(command):
     if not shutil.which(command[0]):
-        return False
+        return None
     try:
-        return subprocess.run(command, capture_output=True, check=False, timeout=10).returncode == 0
+        result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=10)
     except (OSError, subprocess.TimeoutExpired):
-        return False
+        return None
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def command_available(command):
+    return command_output(command) is not None
+
+
+def tool_version(text):
+    match = re.search(r"\b(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.-]+))?", text or "")
+    return (tuple(map(int, match.groups()[:3])), match.group(4)) if match else None
 
 
 def doctor(preview=None, verify=False):
@@ -130,8 +139,20 @@ def doctor(preview=None, verify=False):
         ("cargo-generate", ["cargo", "generate", "--version"], "cargo install cargo-generate --version 0.26.0 --locked"),
         ("rustfmt", ["cargo", "fmt", "--version"], "rustup component add rustfmt"),
     ]
-    checks = [{"id": key, "ok": command_available(command), "required": True, "hint": hint}
-              for key, command, hint in required]
+    # Cargo Generate renders templates even when the destination will be built later.
+    # Edition 2024 requires 1.85. The official egui 0.37 manifest raises that to 1.95.
+    rust_minimum = (1, 95, 0) if profile in integration.DESKTOP else (1, 85, 0)
+    minimums = {"cargo": rust_minimum, "rustc": rust_minimum, "cargo-generate": (0, 26, 0)}
+    checks = []
+    for key, command, hint in required:
+        version_text = command_output(command)
+        observed = tool_version(version_text)
+        minimum = minimums.get(key)
+        ok = version_text is not None and (not minimum or (observed is not None and observed[0] >= minimum))
+        checks.append({"id": key, "ok": ok, "required": True, "hint": hint,
+                       "version": version_text, "minimum": ".".join(map(str, minimum)) if minimum else None})
+    checks.append({"id": "python", "ok": sys.version_info >= (3, 11), "required": True,
+                   "version": platform.python_version(), "hint": "Use Python 3.11 or newer."})
     checks.append({"id": "tomli-w", "ok": importlib.util.find_spec("tomli_w") is not None,
                    "required": True, "hint": "uv run --with-requirements generator/requirements.txt python starter.py ..."})
     checks.append({"id": "uv", "ok": shutil.which("uv") is not None,

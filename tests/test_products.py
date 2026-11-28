@@ -30,17 +30,21 @@ class ProductPlanTests(unittest.TestCase):
                 self.assertIn(capability, plan["capabilities"])
                 self.assertIn("desktop", plan["entrypoints"])
 
-    def test_documents_and_data_cannot_mask_each_other(self):
-        with self.assertRaisesRegex(CompositionError, "one integrated workspace"):
-            starter.plan({"product": "document-workbench", "capabilities": ["data-visualization"]})
+    def test_combined_workspace_connects_documents_data_engineering_and_automation(self):
+        capabilities = ["data-visualization", "engineering-views", "background-work", "automation"]
+        resolved = starter.plan({"product": "document-workbench", "capabilities": capabilities})
+        self.assertEqual(resolved["providers"], ["lab-workbench"])
+        self.assertTrue({"documents", *capabilities} <= set(resolved["capabilities"]))
+        self.assertIn("mcp-stdio", resolved["entrypoints"])
+        self.assertIn("starter-lab", resolved["crates"])
 
     def test_browser_requires_a_supported_adapter_even_when_checking_native(self):
         with self.assertRaisesRegex(CompositionError, "incompatible"):
             starter.plan({"profile": "desktop-egui-web", "targets": ["native"], "capabilities": ["background-work"]})
 
     def test_explicit_modules_cannot_silently_replace_another_workspace(self):
-        with self.assertRaisesRegex(CompositionError, "one integrated workspace"):
-            starter.plan({"profile": "desktop-egui", "modules": ["documents@0.1.0", "data"]})
+        with self.assertRaisesRegex(CompositionError, "legacy workspace cannot mount"):
+            starter.plan({"profile": "desktop-egui", "modules": ["document-demo", "data"]})
 
     def test_native_features_are_distinct_from_selected_features(self):
         request = {"profile": "desktop-egui-web", "preset": "application"}
@@ -74,7 +78,7 @@ class ProductPlanTests(unittest.TestCase):
     def test_inspection_workspace_cannot_be_combined(self):
         for capability in ("documents", "data-visualization", "engineering-views"):
             with self.subTest(capability=capability):
-                with self.assertRaisesRegex(CompositionError, "one integrated workspace"):
+                with self.assertRaisesRegex(CompositionError, "legacy workspace cannot mount"):
                     starter.plan({"product": "inspection-workbench", "capabilities": [capability]})
 
     def test_plans_cover_all_existing_profiles_and_baseline_presets(self):

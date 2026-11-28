@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Exercise project-owned features in four ordinary composed native applications."""
+"""Exercise project-owned features in ordinary composed native applications."""
 import argparse
 import json
 from pathlib import Path
 import subprocess
+import platform
 import sys
 import tempfile
 import time
@@ -13,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from generator.compose import generate
 from starter import plan
-from tools.verify_composed import cli, mcp
+from tools.verify_composed import cli, identity, mcp
 
 
 def edit(project, name, before, after):
@@ -220,7 +221,34 @@ def engineering_extension(project):
     ]
 
 
+def combined_extension(project):
+    """Exercise the combined host against a second domain consumer without changing its code."""
+    test = project / "crates/starter-lab/tests/product_volume.rs"
+    test.parent.mkdir()
+    test.write_text(
+        """
+use starter_lab::domain::{Tank, evaluate};
+
+#[test]
+fn half_full_tank_feeds_the_hydration_report() {
+    let tank = Tank { width_m: 1.0, height_m: 2.0, depth_m: 3.0, fill: 0.5 };
+    assert_eq!(evaluate(tank, || false).unwrap(), 3000.0);
+}
+""".lstrip(), encoding="utf-8",
+    )
+    return [
+        ("tank.resize", {"width_m": 1, "height_m": 2, "depth_m": 3, "fill": 0.5}, None, {"depth_m": 3}),
+        ("tank.litres", {}, None, 3000.0),
+        ("tank.undo", {}, None, {"width_m": 2}),
+        ("tank.litres", {}, None, 1000.0),
+    ]
+
+
 SCENARIOS = {
+    "combined": (
+        "document-workbench", ["data-visualization", "engineering-views", "background-work", "automation"],
+        ["starter-lab", "starter-documents", "starter-tasks", "starter-reference"], combined_extension,
+    ),
     "desktop": ("desktop-application", [], ["ui_app", "starter-desktop", "starter-tasks"], desktop_extension),
     "documents": ("document-workbench", [], ["starter-demo", "starter-documents"], document_extension),
     "inspection": ("inspection-workbench", [], ["starter-demo", "starter-inspection"], inspection_extension),
@@ -240,6 +268,8 @@ def run(name, parent, outcome):
     inventory = json.loads((project / "infrastructure.json").read_text(encoding="utf-8"))
     assert set(packages) <= set(inventory["crates"])
     assert (project / "docs/GETTING_STARTED.md").is_file()
+    paths_before = {path.relative_to(project).as_posix(): path.read_bytes()
+                    for path in project.rglob("*.rs")}
     original = {
         (project / crate["manifest"]): (project / crate["manifest"]).read_bytes()
         for crate in inventory["crates"].values()
@@ -249,6 +279,8 @@ def run(name, parent, outcome):
     assert all(path.read_bytes() == manifest for path, manifest in original.items())
     outcome["extension_ms"] = round((time.monotonic() - begin) * 1000)
     outcome["modified_manifests"] = []
+    outcome["changed_rust_files"] = sorted(path.relative_to(project).as_posix()
+        for path in project.rglob("*.rs") if paths_before.get(path.relative_to(project).as_posix()) != path.read_bytes())
     outcome["modules"] = list(report["modules"])
     subprocess.run(["cargo", "fmt", "--all"], cwd=project, check=True)
     subprocess.run(["cargo", "test", *[option for package in packages for option in ("-p", package)]],
@@ -286,8 +318,10 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     evidence = {
-        "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
+        "source": identity(),
         "source_dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=root)),
+        "command": [sys.executable, *sys.argv],
+        "platform": platform.platform(),
         "rustc": subprocess.check_output(["rustc", "--version"], text=True).strip(),
         "mode": "cargo tests and real CLI/MCP processes without graphical window",
         "scenarios": {},

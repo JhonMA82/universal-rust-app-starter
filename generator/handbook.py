@@ -22,6 +22,15 @@ ENTRY = {
     "web-dioxus": ("dx serve --platform web", "src/main.rs"),
 }
 
+PRODUCT_DOMAINS = {
+    "desktop-product": "crates/app/src/domain.rs",
+    "document-demo": "crates/starter-notes/src/lib.rs",
+    "inspection-demo": "crates/starter-inspection/src/lib.rs",
+    "data-demo": "crates/starter-demo-domain/src/lib.rs",
+    "engineering-demo": "crates/starter-demo-domain/src/lib.rs",
+    "lab-workbench": "crates/starter-lab/src/domain.rs",
+}
+
 
 def relative(project, path):
     return Path(path).resolve().relative_to(project.resolve()).as_posix()
@@ -101,6 +110,16 @@ RECIPES = [
         ],
     ),
     module_guide(
+        "reference-runtime", "Expose a command in the menu and toolbar",
+        ["crates/starter-reference/src/lib.rs", "crates/starter-desktop/src/actions.rs"],
+        ["ActionSpec", "View::actions", "View::action_parameters"],
+        [
+            "Register the operation once. Define a `const ACTIONS: &[ActionSpec]` with its ID, label and optional menu, toolbar placement and keyboard shortcut. Return the slice from `View::actions`.",
+            "Build the input for that ID in `View::action_parameters`. The host checks availability and invokes the public registry operation with the active session, document and revision.",
+            "Run `cargo test -p starter-reference` for menu, toolbar and keyboard dispatch. Test your domain rule independently of the presentation.",
+        ],
+    ),
+    module_guide(
         "document-demo", "Replace the sample notes model",
         ["crates/starter-notes/src/lib.rs", "crates/starter-demo/src/lib.rs"],
         ["starter_notes::Domain", "starter_notes::format", "View::request_save"],
@@ -112,11 +131,22 @@ RECIPES = [
     module_guide(
         "documents", "Save and reopen an application document",
         ["crates/starter-documents/src/lib.rs", "crates/starter-documents/src/storage.rs"],
-        ["History<T>", "Format<T>", "storage::Document<T>", "Document::open", "Document::save"],
+        ["History<T>", "Format<T>", "storage::Document<T>", "storage::Recovery",
+         "Document::open", "Document::save", "Document::autosave"],
         [
             "Choose a stable format ID, version, byte limit and validation function. Implement consecutive migrations when increasing the version.",
             "On native targets create a `storage::Document::new(format, initial, undo_capacity)` or open an existing file. Call `replace(candidate)`, `undo()`, `redo()` and `save(path)` on that session. The session owns the checksum, disk revision and save point.",
-            "For a native file, save an `Envelope` with the last disk checksum or `None` for a new file. Keep the returned checksum. Apply `History::mark_saved` only after the verified write succeeds. Add a round-trip and an external-write conflict test.",
+            "Use `storage::Recovery` to choose a distinct location for drafts. Call `Document::autosave` with a committed snapshot and use `recover` or `discard_recovery` after the user decides. Add round-trip, recovery and conflict tests.",
+        ],
+    ),
+    module_guide(
+        "inspection-demo", "Extend a typed inspection report",
+        ["crates/starter-inspection/src/lib.rs", "crates/starter-demo/src/lib.rs", "docs/modules/inspection-demo.md"],
+        ["InspectionReport", "InspectionCheck", "format", "inspection.get", "inspection.edit"],
+        [
+            "Add a report field in `InspectionReport` or a check field in `InspectionCheck`. Update the default and format validation. Supply a deserialization default for a compatible addition or a versioned migration for a breaking format change.",
+            "Display the field in the inspection workbench and bind it to the view draft. Commit through `inspection.edit` with the observed document revision so the registry validates and records the edit.",
+            "Run `cargo test -p starter-inspection -p starter-demo` for operation validation, undo, save, reopen and recovery. If automation was selected, discover the updated input schema from the installed MCP transport.",
         ],
     ),
     module_guide(
@@ -154,6 +184,16 @@ RECIPES = [
         [
             "Replace or extend the parameter model and give each dimension an explicit unit. Validate inputs before making history edits.",
             "Add your computed result as a graph node and compare it with a known analytical case. Generate display geometry from the accepted model and edit parameters via the operation registry.",
+        ],
+    ),
+    module_guide(
+        "lab-workbench", "Extend a laboratory calculation",
+        ["crates/starter-lab/src/domain.rs", "crates/starter-lab/src/view.rs", "crates/starter-lab/src/lib.rs"],
+        ["Tank", "evaluate", "tank.parameters", "tank.resize", "tank.litres"],
+        [
+            "Work in `Tank` and its validation. Keep the persisted parameters and units in the typed document, and render the same committed values in the canvas and viewport.",
+            "Use the evaluation graph for derived results and the existing background task API for long calculations. Publish a result with the revision that started the work to keep stale results out of the model.",
+            "Use `cargo test -p starter-lab` to verify an analytical result and cancellation. For an enabled MCP adapter, discover and invoke the public registry operations. Keep file actions and result publication in local commands.",
         ],
     ),
     module_guide(
@@ -214,8 +254,8 @@ def paths_for(project, patterns):
     return [name for name in patterns if (project / name).is_file()]
 
 
-def write_handbook(project, report, metadata):
-    """Write portable, composition-aware project documentation."""
+def build_inventory(project, report, metadata):
+    """Derive project documentation data from the installed composition."""
     profile = report["profile"]
     modules = set(report["modules"])
     start, entry = ENTRY[profile]
@@ -242,10 +282,14 @@ def write_handbook(project, report, metadata):
         launch.append("cargo run --bin operations -- --operations")
 
     domains = paths_for(project, [
-        "crates/app/src/domain.rs", "crates/starter-demo-domain/src/lib.rs",
-        "crates/starter-notes/src/lib.rs",
+        source for module, source in PRODUCT_DOMAINS.items() if module in modules
     ])
-    views = paths_for(project, ["crates/app/src/view.rs", "crates/starter-demo/src/lib.rs"])
+    if not domains and "documents" in modules and profile == "desktop-egui-web":
+        domains = paths_for(project, ["crates/starter-notes/src/lib.rs"])
+    views = paths_for(project, [
+        "crates/app/src/view.rs", "crates/starter-demo/src/lib.rs",
+        "crates/starter-lab/src/view.rs", "crates/starter-lab/src/lib.rs",
+    ])
     recipes = []
     for recipe in RECIPES:
         module = recipe["module"]
@@ -270,20 +314,13 @@ def write_handbook(project, report, metadata):
         boundaries.append("Install wasm32-unknown-unknown with rustup and use the browser tool named by the profile.")
     docs = ["docs/COMPOSITION.md", "docs/ARCHITECTURE.md"] if modules else ["docs/ARCHITECTURE.md"]
     docs = paths_for(project, docs)
-    product_sources = paths_for(project, [
-        "crates/app/src/domain.rs", "crates/app/src/view.rs", "crates/app/src/product.rs",
-        "crates/starter-demo-domain/src/lib.rs" if {"data-demo", "engineering-demo"} & modules else "",
-        "crates/starter-notes/src/lib.rs" if "documents" in modules else "",
-        "crates/starter-demo/src/lib.rs", entry,
-    ])
-    if "application-core" in modules and not (
-        {"document-demo", "data-demo", "engineering-demo"} & modules
-        or "crates/app/src/domain.rs" in product_sources
-    ):
+    docs.extend(sorted(relative(project, file) for file in (project / "docs/modules").glob("*.md")))
+    product_sources = list(dict.fromkeys([*domains, *views, *paths_for(project, [entry])]))
+    if "application-core" in modules and not domains:
         product_sources.extend(paths_for(project, ["crates/starter-core/src/sample.rs"]))
     forge = (project / "docs/EGUI_VISUAL_FORGE.md").is_file()
     skills = sorted(relative(project, file) for file in (project / ".agents/skills").glob("*/SKILL.md"))
-    inventory = {
+    return {
         "schema_version": 1,
         "profile": profile,
         "preset": report["preset"],
@@ -304,12 +341,17 @@ def write_handbook(project, report, metadata):
         "restrictions": boundaries,
         "visual_forge": "docs/EGUI_VISUAL_FORGE.md" if forge else None,
     }
+
+
+def render_handbook(inventory):
+    profile = inventory["profile"]
+    modules = inventory["modules"]
     lines = [
         "# Develop the product", "",
-        f"Profile `{profile}`, preset `{report['preset']}`.", "",
+        f"Profile `{profile}`, preset `{inventory['preset']}`.", "",
         "## Start", "",
         "Run one entry point at a time from the generated project root. The first command starts the app, server or library test suite.",
-        "", "```sh", *launch, "```", "",
+        "", "```sh", *inventory["launch"], "```", "",
     ]
     if installed := inventory["capabilities"]:
         lines.extend(["Installed capabilities " + ", ".join(f"`{value}`" for value in installed) + ".", ""])
@@ -318,24 +360,29 @@ def write_handbook(project, report, metadata):
             "Start in `crates/app/src/domain.rs` and `crates/app/src/view.rs`. The desktop product already wires the registry, rendering and native tasks. Run `cargo run -p desktop -- --operations` to inspect the operation IDs.",
             "",
         ])
-    if commands := list(integration.guides(profile, interfaces)):
+    if "inspection-demo" in modules:
+        lines.extend([
+            "Use Apply changes to validate and commit the editor draft. Enter a file path to save or reopen the report. Use the Recovery panel to review available autosaved drafts.",
+            "",
+        ])
+    if commands := list(integration.guides(profile, inventory["entrypoints"])):
         lines.extend([*["- " + line for line in commands], ""])
-    for boundary in boundaries:
+    for boundary in inventory["restrictions"]:
         lines.extend([boundary, ""])
     lines.extend([
         "## Make the first domain change", "",
         "Before adding infrastructure, inspect [the installed inventory](../infrastructure.json) and reuse available components and commands. Dependencies specific to your domain remain the product's decision.", "",
-        *[f"- [`{source}`](../{source})" for source in product_sources], "",
+        *[f"- [`{source}`](../{source})" for source in inventory["product_sources"]], "",
         "Put the rule in your domain, register it once, then add the view or client that invokes it. Test the rule and operation independently of the interface.", "",
     ])
-    for recipe in recipes:
+    for recipe in inventory["recipes"]:
         lines.extend([
             f"### {recipe['name']}", "",
             ", ".join(f"`{api}`" for api in recipe["apis"]) + ".", "",
             *[f"- [`{path}`](../{path})" for path in recipe["paths"]], "",
             *[f"{i}. {step}" for i, step in enumerate(recipe["steps"], 1)], "",
         ])
-    if forge:
+    if inventory["visual_forge"]:
         lines.extend([
             "## Inspect and compare the interface", "",
             "[Visual Forge](EGUI_VISUAL_FORGE.md) documents the local environment, screenshot capture, scene files and comparison. Install the tools in that environment with `uv sync` and run its checks with `uv run python tools/validate_toolkit.py`.",
@@ -361,14 +408,40 @@ def write_handbook(project, report, metadata):
           for name, crate in inventory["crates"].items()],
         "",
         "## Verify", "",
-        "```sh", *verification, "```", "",
+        "```sh", *inventory["verification"], "```", "",
         *(["Run `cargo xtask --help` to discover the available development commands.", ""]
           if "engineering-tools" in modules else []),
         "[Agent instructions](../AGENTS.md) list the remaining project conventions.",
-        *[f"See [`{path}`](../{path})." for path in docs], "",
+        *[f"See [`{path}`](../{path})." for path in inventory["docs"]], "",
     ])
-    handbook = project / "docs/GETTING_STARTED.md"
-    handbook.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+    if inventory["skills"]:
+        lines.extend([
+            "## Installed skills", "",
+            *[f"- [`{Path(path).parent.name}`](../{path})" for path in inventory["skills"]],
+            "",
+        ])
+    return "\n".join(lines)
+
+
+
+def installed_skills_line(paths):
+    links = [f"[`{Path(path).parent.name}`](../{path})" for path in paths]
+    return f"Installed ({len(links)}): " + ", ".join(links) + "."
+
+def write_handbook(project, report, metadata):
+    """Write the guide and inventory from the same installed-project data."""
+    inventory = build_inventory(project, report, metadata)
+    (project / "docs/GETTING_STARTED.md").write_text(
+        render_handbook(inventory), encoding="utf-8", newline="\n",
+    )
+    skills_doc = project / "docs/SKILLS.md"
+    if skills_doc.is_file():
+        lines = skills_doc.read_text(encoding="utf-8").splitlines()
+        matches = [index for index, line in enumerate(lines) if line.startswith("Installed (")]
+        if len(matches) != 1:
+            raise ValueError("expected one installed skills list in docs/SKILLS.md")
+        lines[matches[0]] = installed_skills_line(inventory["skills"])
+        skills_doc.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     (project / "infrastructure.json").write_text(
         json.dumps(inventory, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n",
     )

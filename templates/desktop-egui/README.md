@@ -29,7 +29,7 @@ See below; adapt the starter example rather than building your production domain
 cargo run -p desktop
 cargo test --workspace
 ```
-Prefer modifying `crates/app` rather than platform runners for shared UI behavior. Linux needs Wayland or X11 libraries.
+For a direct Cargo Generate project, put shared UI behavior in `crates/app`. Composed projects include a Getting started guide that identifies the installed views and domain. Linux needs Wayland or X11 libraries.
 
 ## Egui Visual Forge
 

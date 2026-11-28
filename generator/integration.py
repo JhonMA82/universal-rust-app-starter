@@ -160,6 +160,18 @@ def install(project: Path, profile, ordered, modules, *, name, merge):
                 f"    starter_reference::launch({title}, domain::application(), |_, app| view::WorkspaceView::new(app))\n"
                 "}\n", encoding="utf-8",
             )
+        elif providers == ["lab-workbench"]:
+            merge(changed.setdefault(APP_MANIFEST, {}), cargo_dependency("starter-lab", "../starter-lab"))
+            merge(changed[APP_MANIFEST], {"features": {"ui-inspection": ["starter-lab/ui-inspection"]}})
+            adapter.write_text(
+                "pub fn run() -> starter_reference::Result<()> {\n"
+                f"    starter_lab::run({title})\n"
+                "}\n", encoding="utf-8",
+            )
+            merge(changed[APP_MANIFEST], cargo_dependency("starter-reference", "../starter-reference"))
+            if runtime_features:
+                merge(changed.setdefault("crates/starter-lab/Cargo.toml", {}),
+                      cargo_dependency("starter-reference", "../starter-reference", features=runtime_features))
         elif providers:
             # One host and an application-provided domain view.
             merge(changed.setdefault(APP_MANIFEST, {}), cargo_dependency("starter-demo", "../starter-demo"))

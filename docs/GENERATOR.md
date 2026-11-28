@@ -43,8 +43,10 @@ default executable and adds a separate operations companion.
 
 Native Workbench and Engineering use the same document and engineering
 providers selected by the corresponding references. Selecting the data module
-on a native egui profile selects the Data Explorer provider unless an explicit
-provider is selected. Hybrid Workbench uses the same typed notes and history
+on a native egui profile selects the Data Explorer provider. A request for at
+least two of the document, data and engineering views uses the combined tank
+workspace. The composer rejects incompatible explicit legacy entrypoints.
+Hybrid Workbench uses the same typed notes and history
 in a browser-compatible view. That view retains content in memory and provides
 no native file picker or native filesystem writes.
 

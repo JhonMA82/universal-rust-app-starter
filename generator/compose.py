@@ -194,14 +194,18 @@ def resolve_configuration(profile, preset, name, requested=(), targets=(), featu
     requested = [*presets[preset], *requested]
     ordered = resolve(modules, requested, profile, valid_targets)
     if profile == "desktop-egui":
+        selected = set(ordered)
         views = {
             *({"document-demo"} if preset == "workbench" or "documents" in explicit_modules else ()),
-            *({"data-demo"} if "data" in ordered else ()),
-            *({"engineering-demo"} if preset == "engineering" or {"canvas", "viewport"} <= set(ordered) else ()),
-            *(module for module in ordered if modules[module].get("provider") == "desktop-view"),
+            *({"data-demo"} if "data" in selected else ()),
+            *({"engineering-demo"} if preset == "engineering" or {"canvas", "viewport"} <= selected else ()),
         }
-        if len(views) > 1:
-            raise CompositionError("choose one integrated workspace: " + ", ".join(sorted(views)))
+        providers = {module for module in ordered if modules[module].get("provider") == "desktop-view"}
+        if providers - {"lab-workbench"} and len(views | providers) > 1:
+            raise CompositionError("legacy workspace cannot mount these views: " + ", ".join(sorted(views | providers)))
+        if len(views) > 1 and not providers:
+            requested.append("lab-workbench")
+            ordered = resolve(modules, requested, profile, valid_targets)
     while needed := integration.plan(profile, preset, ordered, modules):
         requested.extend(sorted(needed))
         ordered = resolve(modules, requested, profile, valid_targets)
@@ -212,7 +216,7 @@ def resolve_configuration(profile, preset, name, requested=(), targets=(), featu
         raise CompositionError(f"unsupported features: {sorted(set(features)-declared_features)}")
 
     native_features = {
-        "desktop/ui-inspection", "starter-demo/ui-inspection", "starter-reference/ui-inspection",
+        "desktop/ui-inspection", "starter-demo/ui-inspection", "starter-lab/ui-inspection", "starter-reference/ui-inspection",
         "starter-desktop/visual-evidence", "starter-viewport-wgpu/gpu-evidence",
     }
     if "native" not in selected_targets and (invalid := native_features.intersection(features)):
@@ -302,7 +306,7 @@ def generate(profile, preset, name, destination, requested=(), targets=(), featu
             with (project / doc).open("a", encoding="utf-8") as stream:
                 stream.write("\nSee [Getting started](docs/GETTING_STARTED.md) and the [infrastructure inventory](infrastructure.json).\n")
                 if doc == "AGENTS.md":
-                    stream.write("Inspect the generated inventory before adding shared infrastructure or dependencies. Reuse the installed APIs and justify changes that duplicate a responsibility.\n")
+                    stream.write("Before implementing shared infrastructure, consult the project inventory and usage guides. Reuse the installed capabilities. Justify any duplicate responsibility or new infrastructure dependency.\n")
         report["sha256"] = {p.relative_to(project).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
                             for p in sorted(project.rglob("*")) if p.is_file() and not p.is_symlink()}
         (project / "generation-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

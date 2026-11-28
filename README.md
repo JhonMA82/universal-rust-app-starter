@@ -26,7 +26,7 @@ your views in `crates/app/src/view.rs`.
 
 See [products and capabilities](docs/PRODUCT_GUIDE.md),
 [generator internals](docs/GENERATOR.md), [reuse decisions](docs/REUSE_MATRIX.md),
-[validation](docs/VALIDATION.md) and [migration](docs/MIGRATION_V2.md).
+[validation](docs/VALIDATION.md), [Domain-first acceptance](docs/DOMAIN_ACCEPTANCE.md) and [migration](docs/MIGRATION_V2.md).
 
 ## Profiles
 

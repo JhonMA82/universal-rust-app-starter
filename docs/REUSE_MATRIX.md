@@ -2,9 +2,10 @@
 
 This audit compares source, manifests, notices and representative consumers at
 the revisions below. It records integration and maintenance tradeoffs. Upstream
-test fixtures were inspected as maturity evidence. The audit also exercised
-`craft-atomic` in isolation on Linux. Generated applications continue to resolve their
-own dependencies and can inspect the result with `cargo tree`.
+test fixtures were inspected as maturity evidence. The audit exercised
+`craft-atomic` and a `craft-dialogs` document adapter in isolation on Linux.
+Generated applications continue to resolve their own dependencies and can
+inspect the result with `cargo tree`.
 
 ## Reproducible sources
 
@@ -35,7 +36,7 @@ font baselines and IME. Its suite's full behavior depends on those patches.
 |---|---|---|
 | `craft-ui` for themed controls, icon buttons, tabs, docking, printing and capture | egui/epaint 0.37, craft-fonts-build, craft-i18n and skrifa. Optional native test, font and window features. DesignCraft uses the combo box, layout and capture slot. GridCraft uses combo, printing and ribbon controls. The crate has docking workflow, render and web font tests. | Retain egui primitives, the starter design tokens and egui_dock. The starter already owns dock layout, active operations and restoration. A full switch would add font/i18n policy and a second component or docking model. Adopt a small component only when a project needs behavior unavailable in official egui. |
 | `craft-window`, `craft-quit`, `craft-menu`, `craft-keymap` for shell lifecycle and commands | egui optional in window/quit, native Wayland and AppKit branches, optional storage in window. Menu adds quit/keymap and a macOS backend through muda and AppKit. DesignCraft uses title-bar integration, GridCraft exercises document window placement, and WordCraft uses the window list and shortcut overrides. | Keep `starter-desktop` for workspace lifecycle and the shared operation registry for commands. Apps can add native menu or app-wide quit adapters where their lifecycle requires them. Bringing in all four would duplicate routing and require replacing close, panel and persistence policies. |
-| `craft-dialogs`, `craft-platform` for nonblocking file prompts, Linux/BSD appearance and browser file downloads | Dialogs uses raw-window-handle 0.6.2 and rfd 0.17.2 with XDG portal, plus AppKit on macOS. DesignCraft's handlers map queued dialog answers to app requests and tests inject responses. Platform uses optional D-Bus or browser bindings and has dialog lifecycle and browser download tests. | Preserve in-app confirmations and the existing native/web boundaries. `craft-dialogs` is a candidate for a selectable OS file-picker adapter, with per-platform checks for portal availability, window ownership and cancellation. Avoid turning these requirements into dependencies of every desktop app. |
+| `craft-dialogs`, `craft-platform` for nonblocking file prompts, Linux/BSD appearance and browser file downloads | Dialogs uses raw-window-handle 0.6.2 and rfd 0.17.2 with XDG portal, plus AppKit on macOS. DesignCraft's handlers map queued dialog answers to app requests and tests inject responses. Platform uses optional D-Bus or browser bindings and has dialog lifecycle and browser download tests. | Preserve in-app confirmations and the existing native/web boundaries. Keep `craft-dialogs` as an opt-in candidate. The isolated adapter preserves the document contract, but the native Linux probe could not distinguish an unavailable picker from user cancellation. Adopt it once a product can preflight the native backend and verify parent window behavior. See the experiment below. |
 | `craft-i18n` and `craft-settings` for locale and preferences | i18n adds ICU providers, Unicode folding, bidirectional text and platform locale APIs. Settings uses serde/TOML and craft-atomic, with native directories and recovery tests. WordCraft drives both via its suite facade and embeds suite catalogs. | Keep product-owned labels and the existing shell preference store. The suite catalogs are tailored to its apps. Locale-aware formats and full translated catalogs remain a distinct need for multilingual products. |
 | `craft-atomic`, `craft-document-bundle`, `craft-doc` for low-level persistence and file formats | Atomic uses standard filesystem APIs with Apple rustix and has permission/write tests. DesignCraft wraps it for native writes. Document bundle adds ZIP, and craft-doc decodes three suite-specific formats. | Preserve the existing document revision, migration, save verification and conflict contract. Atomic replacement alone would not substitute for that contract. Re-evaluate `craft-atomic` beneath the persistence adapter when its durability or retry guarantees are needed. Suite bundle and format crates add unnecessary format obligations to the generic template. |
 | `craft-control`, `craft-control-protocol`, `craft-jsonrpc`, `craft-mcp`, `craft-mcp-server` | Bounded JSON and native loopback/stdio pieces. The optional agents integration adds its own suite dependencies. | Preserve `starter-core` as the source of public operation metadata and the existing rmcp/Axum transports. A parallel control channel or MCP implementation would duplicate schemas, session checks and security review. |
@@ -49,6 +50,38 @@ and on `tests/atomic_tests.rs` and `tests/permissions.rs` with
 tests with two POSIX ACL cases ignored by the upstream harness. This exercise
 supports the low-level candidate status. It leaves the starter's document
 format and its compatibility tests unchanged.
+
+### Native file-picker experiment
+
+The example document workbenches accept a typed path today. The experiment
+used `craft-dialogs` from the pinned Craft Libs checkout and the starter's
+real `starter-documents` crate at `b107b400b94841793632b4a409c1d9b6a9f17925`
+in a separate workspace. It retained the upstream dialog package manifest
+and selected `rfd` 0.17.2 and
+`raw-window-handle` 0.6.2, with no egui or winit patch. The Linux dependency
+graph added the dialog crate, rfd and its small portal client dependencies.
+The XDG portal service is an operating-system requirement, so it does not
+appear in the Cargo graph.
+
+A continuation captured the document revision when the picker was queued.
+The frame driver used `show_pending` and `take_answers`, then delegated selected
+paths to `Document::save` and `Document::open`. Two integration tests drove
+the public `Dialogs::set_override` hook and exercised real files. They verified
+save and reopen, dirty state, and preservation of a newer draft when the
+answer was cancelled, unavailable or stale. On Linux with Rust 1.100.0,
+`cargo test --locked --workspace` passed 12 tests: seven upstream dialog tests,
+three existing document tests and two adapter tests.
+
+The native backend probe exercised `show_pending` without a display, D-Bus
+session, XDG portal or Zenity. It returned promptly, woke the continuation
+and yielded `Answer::Cancelled`. That reproduces the `rfd::AsyncFileDialog`
+`Option` boundary: the UI cannot infer from `None` whether a user dismissed
+the picker or the backend failed. This probe does not verify native window
+ownership or a visible file picker. Adoption also needs a real desktop test
+with a supported Linux portal and fallback, a Windows parent window test,
+and a macOS AppKit sheet test. Keep the editable path as a fallback and use
+the same document API for both inputs. Web file selection requires its own
+browser adapter. [rfd 0.17.2 platform documentation](https://docs.rs/rfd/0.17.2/rfd/)
 
 ## Other upstreams
 

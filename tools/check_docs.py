@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Check documentation links and derive the module catalog from its manifests."""
 import argparse
+import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 import tomllib
 from urllib.parse import unquote, urlsplit
@@ -10,6 +12,7 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from generator.compose import catalog, composition_guide, read_json
+from generator.handbook import build_inventory, installed_skills_line, render_handbook
 
 LINK = re.compile(r"(?<!!)\[[^\]\n]+\]\(([^\s()]+)\)")
 
@@ -68,23 +71,39 @@ def inventory_errors(root, report):
     if not path.is_file():
         yield "infrastructure inventory is missing"
         return
-    inventory = read_json(path)
-    for key in ("profile", "preset", "targets", "modules", "entrypoints", "capabilities"):
-        if inventory.get(key) != report.get(key):
-            yield f"infrastructure inventory differs from generation report for {key}"
-    expected_skills = sorted(file.relative_to(root).as_posix() for file in (root / ".agents/skills").glob("*/SKILL.md"))
-    if inventory["skills"] != expected_skills:
-        yield "infrastructure inventory differs from installed skills"
-    paths = [*inventory["skills"], *inventory["docs"], *inventory["product_sources"]]
-    if inventory["visual_forge"]:
-        paths.append(inventory["visual_forge"])
-    for package in inventory["crates"].values():
-        paths.append(package["manifest"])
-        paths.extend(target["source"] for target in package["targets"])
-    for filename in paths:
-        resolved = (root / filename).resolve()
-        if not resolved.is_relative_to(root) or not resolved.is_file():
-            yield f"invalid inventory path: {filename}"
+    try:
+        inventory = read_json(path)
+        cargo = subprocess.run(
+            ["cargo", "metadata", "--offline", "--no-deps", "--format-version", "1"],
+            cwd=root, encoding="utf-8", capture_output=True, check=True,
+        )
+        expected = build_inventory(root, report, json.loads(cargo.stdout))
+    except subprocess.CalledProcessError as error:
+        yield f"cannot verify inventory against Cargo metadata: {error.stderr.strip()}"
+        return
+    except (OSError, ValueError, KeyError) as error:
+        yield f"cannot verify infrastructure inventory: {error}"
+        return
+    if not isinstance(inventory, dict):
+        yield "infrastructure inventory must be a JSON object"
+        return
+    for key in sorted(inventory.keys() | expected.keys()):
+        if key not in inventory or key not in expected or inventory[key] != expected[key]:
+            yield f"infrastructure inventory differs from installed project for {key}"
+    for package in expected["crates"].values():
+        for target in package["targets"]:
+            if not (root / target["source"]).is_file():
+                yield f"invalid Cargo target source: {target['source']}"
+    guide = root / "docs/GETTING_STARTED.md"
+    if not guide.is_file() or guide.read_text(encoding="utf-8") != render_handbook(expected):
+        yield "Getting started guide differs from the installed project inventory"
+
+    skills = root / "docs/SKILLS.md"
+    if skills.is_file():
+        installed = [line for line in skills.read_text(encoding="utf-8").splitlines()
+                     if line.startswith("Installed (")]
+        if installed != [installed_skills_line(expected["skills"])]:
+            yield "installed skills list differs from the generated project inventory"
 
 
 def main():

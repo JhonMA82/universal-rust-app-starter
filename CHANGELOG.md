@@ -2,6 +2,16 @@
 
 ## Unreleased stabilization
 
+- Route Inspection Workbench lifecycle operations through the revisioned
+  registry. Discover previous-process drafts and guard recovery with document
+  identity and the saved base checksum.
+- Compose the native document, data and engineering views in one tank
+  workspace with typed document storage, background evaluation and opt-in MCP.
+- Register shell menu and toolbar actions and keyboard shortcuts against
+  existing public operation IDs.
+- Verify generated inventory, first steps and installed skills against the
+  Cargo workspace and installed payload. Report detected versions in Doctor.
+
 - Add `inspection-workbench`: a product-owned document format on the typed
   `Document<T>` session, with reusable `Recovery`, autosave and recovery in
   `starter-documents`.
