@@ -82,7 +82,7 @@ impl Recovery {
             if recovery.key() != key || !entry.file_type()?.is_file() {
                 continue;
             }
-            let Ok((document, _)) = open(&entry.path(), format) else {
+            let Ok((document, checksum)) = open(&entry.path(), format) else {
                 continue;
             };
             let Ok(base) = recovery_base(&document.extra) else {
@@ -92,6 +92,8 @@ impl Recovery {
                 recovery,
                 original_path: base.map(|base| base.path.into_path()),
                 revision: document.revision,
+                checksum,
+                max_bytes: format.max_bytes,
             });
         }
         drafts.sort_by(|left, right| left.recovery.key.cmp(&right.recovery.key));
@@ -118,6 +120,26 @@ pub struct RecoveryDraft {
     pub recovery: Recovery,
     pub original_path: Option<PathBuf>,
     pub revision: u64,
+    checksum: Checksum,
+    max_bytes: usize,
+}
+
+impl RecoveryDraft {
+    /// Discard only the discovered revision, even if another session has autosaved since.
+    pub fn discard(&self) -> Result<(), Error> {
+        let path = self.recovery.path();
+        let _lock = lock_file(&path, parent_directory(&path))?;
+        let checksum = match read(&path, self.max_bytes) {
+            Ok((_, checksum)) => checksum,
+            Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error),
+        };
+        if checksum != self.checksum {
+            return Err(Error::Conflict);
+        }
+        std::fs::remove_file(path)?;
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
@@ -405,20 +427,13 @@ pub fn open<T: DeserializeOwned>(
     let (bytes, sum) = read(path, format.max_bytes)?;
     Ok((format.decode(&bytes)?, sum))
 }
-pub fn save<T: DeserializeOwned + Serialize + PartialEq>(
-    path: &Path,
-    format: &Format<T>,
-    content: &Envelope<T>,
-    expected: Option<Checksum>,
-) -> Result<SaveReport, Error> {
-    (format.validate)(&content.content)?;
-    if content.format != format.id || content.version != format.version {
-        return Err(Error::Format);
-    }
-    let parent = path
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or(Path::new("."));
+fn parent_directory(path: &Path) -> &Path {
+    path.parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or(Path::new("."))
+}
+
+fn lock_file(path: &Path, parent: &Path) -> Result<File, Error> {
     let mut lock_name = path
         .file_name()
         .ok_or_else(|| Error::Invalid("file name required".into()))?
@@ -430,6 +445,21 @@ pub fn save<T: DeserializeOwned + Serialize + PartialEq>(
         .truncate(false)
         .open(parent.join(lock_name))?;
     fs2::FileExt::lock_exclusive(&lock)?;
+    Ok(lock)
+}
+
+pub fn save<T: DeserializeOwned + Serialize + PartialEq>(
+    path: &Path,
+    format: &Format<T>,
+    content: &Envelope<T>,
+    expected: Option<Checksum>,
+) -> Result<SaveReport, Error> {
+    (format.validate)(&content.content)?;
+    if content.format != format.id || content.version != format.version {
+        return Err(Error::Format);
+    }
+    let parent = parent_directory(path);
+    let _lock = lock_file(path, parent)?;
     let check = || {
         let actual = match read(path, format.max_bytes) {
             Ok((_, sum)) => Some(sum),
@@ -619,6 +649,30 @@ mod tests {
         reopened.discard_recovery(&recovery).unwrap();
         assert!(!recovery.exists());
         assert!(!reopened.recover(&recovery).unwrap());
+    }
+
+    #[test]
+    fn a_discovered_draft_cannot_discard_a_newer_autosave() {
+        let directory = tempfile::tempdir().unwrap();
+        let format = text_format();
+        let recovery = Recovery::new(directory.path(), "draft");
+        let mut document = Document::new(format, "saved".into(), 4).unwrap();
+        document.replace("first draft".into()).unwrap();
+        document.autosave(&recovery).unwrap();
+        let first = Recovery::discover(directory.path(), &format)
+            .unwrap()
+            .remove(0);
+        document
+            .replace("other session updated the draft".into())
+            .unwrap();
+        document.autosave(&recovery).unwrap();
+        assert!(matches!(first.discard(), Err(Error::Conflict)));
+        assert!(recovery.exists());
+        let latest = Recovery::discover(directory.path(), &format)
+            .unwrap()
+            .remove(0);
+        latest.discard().unwrap();
+        assert!(!recovery.exists());
     }
 
     #[test]

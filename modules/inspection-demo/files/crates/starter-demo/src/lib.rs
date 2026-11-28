@@ -163,14 +163,6 @@ impl Inspector {
         }
         Ok(())
     }
-
-    fn discard_recovery(&self, handle: &Recovery) -> Result<(), starter_documents::Error> {
-        self.app
-            .lock()
-            .expect("application mutex")
-            .state()
-            .discard_recovery(handle)
-    }
 }
 
 impl View for Inspector {
@@ -197,7 +189,7 @@ impl View for Inspector {
                                 };
                             }
                             if ui.button("Discard autosaved draft").clicked() {
-                                self.status = match self.discard_recovery(&draft.recovery) {
+                                self.status = match draft.discard() {
                                     Ok(()) => ("Discarded autosaved draft".into(), false),
                                     Err(error) => (error.to_string(), true),
                                 };
@@ -396,7 +388,7 @@ mod tests {
         let stored = Document::open(format(), &report, 128).unwrap();
         assert_eq!(stored.history().value().site, "Bridge 9");
         assert!(editor.recover(&draft).is_err(), "saved drafts are stale");
-        editor.discard_recovery(&draft.recovery).unwrap();
+        draft.discard().unwrap();
         assert!(!draft.recovery.exists());
     }
 

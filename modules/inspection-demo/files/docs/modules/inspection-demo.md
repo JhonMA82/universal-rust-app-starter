@@ -14,3 +14,6 @@ file location. Each untitled session gets its own draft key, and recovery
 continues that draft. Run subsequent sessions from the same directory to
 discover it. Saving preserves drafts until you explicitly discard them.
 A draft older than its saved base cannot override that saved report.
+
+Discard checks that the selected draft has not changed since discovery. If
+another session autosaves first, refresh the list before deciding to discard it.
