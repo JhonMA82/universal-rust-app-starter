@@ -4,7 +4,8 @@
   "description": "Inspection Workbench reference built on the typed document session",
   "dependencies": [
     "documents@0.1.0",
-    "reference-runtime@0.1.0"
+    "reference-runtime@0.1.0",
+    "tasks@0.1.0"
   ],
   "profiles": [
     "desktop-egui"
@@ -85,6 +86,9 @@
           "features": [
             "v4"
           ]
+        },
+        "starter-tasks": {
+          "path": "../starter-tasks"
         }
       },
       "dev-dependencies": {

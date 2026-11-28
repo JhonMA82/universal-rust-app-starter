@@ -11,8 +11,7 @@
   must provide an isolating snapshot implementation.
 - Native documents use bounded JSON files and retain undo/redo in memory.
   Explicit Open and Save perform synchronous bounded I/O. The notes editor
-  runs periodic recovery writes in a worker. Inspection Workbench currently
-  performs those bounded writes in its window event loop. External editors can
+  and Inspection Workbench run periodic recovery writes in a worker. External editors can
   bypass advisory locks. Inspection Reports uses its own workspace. The
   combined tank workspace supports document, data and engineering views.
 - Browser notes are in memory. The browser build does not start native MCP,

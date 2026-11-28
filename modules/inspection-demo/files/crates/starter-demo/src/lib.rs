@@ -2,9 +2,10 @@
 use eframe::egui;
 use serde_json::json;
 use starter_desktop::Panel;
-use starter_documents::storage::{Document, Recovery, RecoveryDraft};
+use starter_documents::storage::{Document, Recovery, RecoveryDraft, SaveReport};
 use starter_inspection::{InspectionCheck, InspectionReport, format, recovery};
 use starter_reference::{Shared, View, invoke};
+use starter_tasks::TaskSlot;
 use std::{
     path::PathBuf,
     time::{Duration, Instant},
@@ -22,6 +23,8 @@ struct Inspector {
     recovery_directory: PathBuf,
     untitled_key: String,
     last_autosave: Instant,
+    autosave: TaskSlot<Option<SaveReport>, String>,
+    recovery_drafts: Option<Result<Vec<RecoveryDraft>, starter_documents::Error>>,
     status: (String, bool),
 }
 
@@ -45,6 +48,8 @@ impl Inspector {
             recovery_directory: ".inspection-recovery".into(),
             untitled_key: format!("untitled-{}", uuid::Uuid::new_v4().simple()),
             last_autosave: Instant::now(),
+            autosave: TaskSlot::default(),
+            recovery_drafts: None,
             status: ("Ready".into(), false),
         }
     }
@@ -117,37 +122,28 @@ impl Inspector {
         }
     }
 
-    fn autosave(&mut self) -> bool {
-        let outcome = (|| -> Result<_, String> {
-            if self.draft != self.baseline {
-                let parameters = json!({"report": self.draft, "if_revision": self.draft_revision});
-                self.execute("inspection.edit", parameters)?;
-            }
-            let document = {
-                let app = self.app.lock().expect("application mutex");
-                app.state().clone()
-            };
-            let handle = recovery(
-                self.recovery_directory.clone(),
-                document.bound_path().map(PathBuf::from),
-                &self.untitled_key,
-            )
-            .map_err(|error| error.message)?;
-            document
-                .autosave(&handle)
-                .map_err(|error| error.to_string())
-        })();
-        match outcome {
-            Ok(Some(report)) => {
-                self.status = (format!("Autosaved {} bytes", report.bytes), false);
-                true
-            }
-            Ok(None) => false,
-            Err(error) => {
-                self.status = (format!("Autosave: {error}"), true);
-                false
-            }
+    fn start_autosave(&mut self) -> Result<bool, String> {
+        if self.draft != self.baseline {
+            let parameters = json!({"report": self.draft, "if_revision": self.draft_revision});
+            self.execute("inspection.edit", parameters)?;
         }
+        let document = self.app.lock().expect("application mutex").state().clone();
+        if !document.history().dirty() {
+            return Ok(false);
+        }
+        let directory = self.recovery_directory.clone();
+        let key = self.untitled_key.clone();
+        // The worker saves an immutable draft. Its result only changes UI feedback.
+        self.autosave
+            .start(0, move |_| {
+                let handle = recovery(directory, document.bound_path().map(PathBuf::from), &key)
+                    .map_err(|error| error.message)?;
+                document
+                    .autosave(&handle)
+                    .map_err(|error| error.to_string())
+            })
+            .map_err(|error| error.to_string())?;
+        Ok(true)
     }
 
     fn recover(&mut self, draft: &RecoveryDraft) -> Result<(), String> {
@@ -167,11 +163,22 @@ impl Inspector {
 
 impl View for Inspector {
     fn show(&mut self, panel: Panel, ui: &mut egui::Ui) {
-        ui.ctx()
-            .request_repaint_after(AUTOSAVE.saturating_sub(self.last_autosave.elapsed()));
+        let refresh = if self.autosave.progress().is_some() {
+            Duration::from_millis(50)
+        } else {
+            AUTOSAVE.saturating_sub(self.last_autosave.elapsed())
+        };
+        ui.ctx().request_repaint_after(refresh);
         if panel == Panel::Custom(110) {
             ui.heading("Recovery");
-            match Recovery::discover(&self.recovery_directory, &format()) {
+            let elapsed = ui.button("Refresh recovery list").clicked();
+            let mut refresh = elapsed;
+            let drafts = self
+                .recovery_drafts
+                .take()
+                .filter(|_| !elapsed)
+                .unwrap_or_else(|| Recovery::discover(&self.recovery_directory, &format()));
+            match &drafts {
                 Ok(drafts) if drafts.is_empty() => {
                     ui.label("No autosaved drafts");
                 }
@@ -183,12 +190,13 @@ impl View for Inspector {
                                 |path| path.display().to_string(),
                             ));
                             if ui.button("Recover autosaved draft").clicked() {
-                                self.status = match self.recover(&draft) {
+                                self.status = match self.recover(draft) {
                                     Ok(()) => ("Recovered autosaved draft".into(), false),
                                     Err(error) => (error, true),
                                 };
                             }
                             if ui.button("Discard autosaved draft").clicked() {
+                                refresh = true;
                                 self.status = match draft.discard() {
                                     Ok(()) => ("Discarded autosaved draft".into(), false),
                                     Err(error) => (error.to_string(), true),
@@ -200,6 +208,11 @@ impl View for Inspector {
                 Err(error) => {
                     starter_desktop::status(ui, &error.to_string(), true);
                 }
+            }
+            if !refresh {
+                self.recovery_drafts = Some(drafts);
+            } else {
+                ui.ctx().request_repaint();
             }
             return;
         }
@@ -303,11 +316,22 @@ impl View for Inspector {
         {
             self.sync();
         }
-        if self.last_autosave.elapsed() < AUTOSAVE {
-            return;
+        if let Some(result) = self.autosave.poll(0) {
+            match result {
+                Ok(Some(report)) => {
+                    self.recovery_drafts = None;
+                    self.status = (format!("Autosaved {} bytes", report.bytes), false);
+                }
+                Ok(None) => {}
+                Err(error) => self.status = (format!("Autosave: {error:?}"), true),
+            }
         }
-        self.last_autosave = Instant::now();
-        self.autosave();
+        if self.autosave.progress().is_none() && self.last_autosave.elapsed() >= AUTOSAVE {
+            self.last_autosave = Instant::now();
+            if let Err(error) = self.start_autosave() {
+                self.status = (format!("Autosave: {error}"), true);
+            }
+        }
     }
 
     fn panels(&self) -> &[starter_desktop::PanelSpec] {
@@ -349,6 +373,19 @@ mod tests {
         Inspector::new(Arc::new(Mutex::new(starter_inspection::application())))
     }
 
+    fn autosave(editor: &mut Inspector) {
+        assert!(editor.start_autosave().unwrap());
+        let expiry = Instant::now() + Duration::from_secs(3);
+        loop {
+            if let Some(result) = editor.autosave.poll(0) {
+                assert!(result.unwrap().is_some());
+                return;
+            }
+            assert!(Instant::now() < expiry, "autosave worker stalled");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
     #[test]
     fn autosave_and_recovery_use_the_shared_document_session() {
         let directory = tempfile::tempdir().unwrap();
@@ -361,12 +398,9 @@ mod tests {
         assert!(!editor.dirty(), "saving includes pending UI edits");
         editor.draft.site = "Bridge 8".into();
         assert!(editor.dirty());
-        assert!(editor.autosave());
+        autosave(&mut editor);
         editor.draft.site = "Bridge 9".into();
-        assert!(
-            editor.autosave(),
-            "successive UI autosaves advance the revision"
-        );
+        autosave(&mut editor);
         assert!(
             editor.open().is_err(),
             "opening must not discard the pending edit"
@@ -401,8 +435,8 @@ mod tests {
         second.recovery_directory = directory.path().into();
         first.draft.site = "Bridge 11".into();
         second.draft.site = "Bridge 12".into();
-        assert!(first.autosave());
-        assert!(second.autosave());
+        autosave(&mut first);
+        autosave(&mut second);
         let drafts = Recovery::discover(directory.path(), &format()).unwrap();
         assert_eq!(drafts.len(), 2);
         assert!(drafts.iter().all(|draft| draft.original_path.is_none()));
