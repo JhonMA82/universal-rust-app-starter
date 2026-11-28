@@ -116,7 +116,7 @@ impl Inspector {
 
     fn require_clean(&self) -> Result<(), String> {
         if self.dirty() {
-            Err("Save or recover the current work before switching documents".into())
+            Err("Save the current changes before switching documents".into())
         } else {
             Ok(())
         }
@@ -442,7 +442,7 @@ mod tests {
         assert!(drafts.iter().all(|draft| draft.original_path.is_none()));
         let expected = drafts
             .iter()
-            .find(|draft| draft.recovery.key() == &first.untitled_key)
+            .find(|draft| draft.recovery.key() == first.untitled_key)
             .unwrap();
         drop(first);
         drop(second);

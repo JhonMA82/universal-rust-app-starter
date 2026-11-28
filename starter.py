@@ -168,9 +168,16 @@ def doctor(preview=None, verify=False):
         checks.append({"id": WASM, "ok": has_std, "required": verify,
                        "hint": f"rustup target add {WASM}"})
         web_tool = "dx" if profile == "web-dioxus" else "trunk"
-        checks.append({"id": web_tool, "ok": shutil.which(web_tool) is not None, "required": False,
-                       "hint": "cargo install dioxus-cli --version 0.7.3 --locked" if web_tool == "dx"
-                       else "cargo install trunk --version 0.22.2 --locked"})
+        installed = command_output([web_tool, "--version"])
+        if web_tool == "dx":
+            manifest = tomllib.loads((ROOT / "templates/web-dioxus/Cargo.toml").read_text(encoding="utf-8"))
+            runtime_version = manifest["dependencies"]["dioxus"]["version"].removeprefix("=")
+            ok = tool_version(installed) == tool_version(runtime_version)
+            hint = f"cargo install dioxus-cli --version {runtime_version} --locked"
+        else:
+            ok = installed is not None
+            hint = "cargo install trunk --version 0.22.2 --locked"
+        checks.append({"id": web_tool, "ok": ok, "required": False, "version": installed, "hint": hint})
     if profile and profile.startswith("desktop-egui") and "native" in targets and sys.platform.startswith("linux"):
         checks.append({"id": "linux-window-libraries", "ok": command_available(["pkg-config", "--exists", "xkbcommon", "wayland-client"]),
                        "required": False, "hint": "On Debian or Ubuntu install libxkbcommon-dev libxkbcommon-x11-0 libwayland-dev libx11-dev for native windows."})
