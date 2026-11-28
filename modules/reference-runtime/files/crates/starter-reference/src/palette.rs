@@ -1,7 +1,7 @@
-use crate::{Shared, local_session};
+use crate::{Shared, local_session, operation_request, result_feedback};
 use eframe::egui::{self, Context};
 use serde_json::Value;
-use starter_core::{Operation, Request};
+use starter_core::Operation;
 
 #[derive(Default)]
 pub struct Palette {
@@ -20,13 +20,8 @@ impl Palette {
         document: Option<u64>,
     ) -> Option<(String, bool)> {
         let session = local_session();
-        let make_request = |operation: &Operation, parameters: Value| Request {
-            command_id: operation.id.into(),
-            parameters,
-            session_id: session.id.clone(),
-            document_id: document.map(|id| id.to_string()),
-            request_id: None,
-            expected_revision: None,
+        let make_request = |operation: &Operation, parameters: Value| {
+            operation_request(&session, operation.id, parameters, document, None)
         };
         let operations: Vec<_> = app.lock().ok()?.discover(&session, true).cloned().collect();
         let mut invoke = None;
@@ -117,10 +112,7 @@ impl Palette {
             Ok(output) => {
                 *open = false;
                 self.error = None;
-                Some((
-                    format!("Result · revision {}: {}", output.revision, output.result),
-                    false,
-                ))
+                Some(result_feedback(output))
             }
             Err(error) => {
                 self.error = Some(error.message);

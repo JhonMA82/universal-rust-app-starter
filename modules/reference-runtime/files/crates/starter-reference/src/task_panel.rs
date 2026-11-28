@@ -1,29 +1,19 @@
 use eframe::egui::Ui;
-use starter_tasks::{Control, Error, Job, Pool};
+use starter_tasks::{Control, Error, TaskSlot};
 
 /// Example of submitting an immutable input snapshot from an egui view.
+#[derive(Default)]
 pub struct TaskPanel {
-    pool: Pool,
-    job: Option<Job<usize, ()>>,
+    job: TaskSlot<usize, ()>,
     completed: Option<(u64, String, bool)>,
-}
-
-impl Default for TaskPanel {
-    fn default() -> Self {
-        Self {
-            pool: Pool::new(1),
-            job: None,
-            completed: None,
-        }
-    }
 }
 
 impl TaskPanel {
     /// Render the example. Update `revision` whenever the input changes.
     pub fn show(&mut self, ui: &mut Ui, text: &str, revision: u64) {
         ui.heading("Background task");
-        if let Some(job) = &mut self.job {
-            if let Some(result) = job.poll(revision) {
+        if let Some(progress) = self.job.progress() {
+            if let Some(result) = self.job.poll(revision) {
                 let (message, error) = match result {
                     Ok(words) => (format!("{words} words"), false),
                     Err(Error::Cancelled) => ("Task cancelled".to_owned(), false),
@@ -33,11 +23,10 @@ impl TaskPanel {
                     }
                 };
                 self.completed = Some((revision, message, error));
-                self.job = None;
             } else {
-                starter_desktop::progress(ui, f32::from(job.progress()) / 10_000.0);
+                starter_desktop::progress(ui, f32::from(progress) / 10_000.0);
                 if ui.button("Cancel word count").clicked() {
-                    job.cancel();
+                    self.job.cancel();
                 }
                 ui.ctx()
                     .request_repaint_after(std::time::Duration::from_millis(50));
@@ -48,13 +37,10 @@ impl TaskPanel {
             self.completed = None;
             let snapshot = text.to_owned();
             match self
-                .pool
+                .job
                 .start(revision, move |control| Ok(count_words(&snapshot, control)))
             {
-                Ok(job) => {
-                    self.job = Some(job);
-                    ui.ctx().request_repaint();
-                }
+                Ok(()) => ui.ctx().request_repaint(),
                 Err(error) => self.completed = Some((revision, error.to_string(), true)),
             }
         }

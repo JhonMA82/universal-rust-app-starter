@@ -4,7 +4,7 @@ mod palette;
 mod task_panel;
 use serde_json::{Value, json};
 use starter_core::{Application, Error, Request, Response, Session};
-use starter_desktop::{Panel, Shell};
+use starter_desktop::{ActionSpec, ActionState, Panel, Shell};
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
@@ -26,21 +26,40 @@ pub fn invoke<S: 'static>(
     document: Option<u64>,
     revision: Option<u64>,
 ) -> std::result::Result<Response, Error> {
+    let session = local_session();
     app.lock()
         .map_err(|_| Error::new("internal", "application unavailable"))?
         .invoke(
-            &local_session(),
+            &session,
             false,
-            Request {
-                command_id: id.into(),
-                parameters,
-                session_id: "local".into(),
-                document_id: document.map(|id| id.to_string()),
-                request_id: None,
-                expected_revision: revision,
-            },
+            operation_request(&session, id, parameters, document, revision),
         )
 }
+
+fn operation_request(
+    session: &Session,
+    id: &str,
+    parameters: Value,
+    document: Option<u64>,
+    revision: Option<u64>,
+) -> Request {
+    Request {
+        command_id: id.into(),
+        parameters,
+        session_id: session.id.clone(),
+        document_id: document.map(|id| id.to_string()),
+        request_id: None,
+        expected_revision: revision,
+    }
+}
+
+fn result_feedback(output: Response) -> (String, bool) {
+    (
+        format!("Result · revision {}: {}", output.revision, output.result),
+        false,
+    )
+}
+
 pub trait View {
     fn show(&mut self, panel: Panel, ui: &mut eframe::egui::Ui);
     fn status(&self) -> (String, bool);
@@ -60,6 +79,14 @@ pub trait View {
     fn panels(&self) -> &[starter_desktop::PanelSpec] {
         &[]
     }
+    /// Register menus, toolbar buttons and shortcuts for public operations.
+    fn actions(&self) -> &'static [ActionSpec] {
+        &[]
+    }
+    /// Capture typed operation parameters from the current view before rendering its actions.
+    fn action_parameters(&self, _action: &ActionSpec) -> Value {
+        json!({})
+    }
     fn request_save(&mut self) -> bool {
         false
     }
@@ -67,7 +94,7 @@ pub trait View {
 struct Window<V, S> {
     app: Shared<S>,
     palette: palette::Palette,
-    command_status: Option<(String, bool)>,
+    command_status: Option<(f64, (String, bool))>,
     shell: Shell,
     view: V,
     title: &'static str,
@@ -79,29 +106,86 @@ impl<V: View, S: 'static> eframe::App for Window<V, S> {
         }
     }
     fn ui(&mut self, ui: &mut eframe::egui::Ui, _: &mut eframe::Frame) {
+        self.frame(ui);
+    }
+}
+impl<V: View, S: 'static> Window<V, S> {
+    fn frame(&mut self, ui: &mut eframe::egui::Ui) {
         self.view.tick();
+        let time = ui.input(|input| input.time);
         let (status, error) = self
             .command_status
-            .clone()
-            .unwrap_or_else(|| self.view.status());
-        self.shell.workspace.document = self.view.active_document();
-        self.shell.show(
+            .as_ref()
+            .filter(|(expires, _)| *expires > time)
+            .map_or_else(|| self.view.status(), |(_, message)| message.clone());
+        let document = self.view.active_document();
+        self.shell.workspace.document = document;
+        let session = local_session();
+        let specs = self.view.actions();
+        let mut requests: Vec<_> = specs
+            .iter()
+            .map(|spec| {
+                operation_request(
+                    &session,
+                    spec.command,
+                    self.view.action_parameters(spec),
+                    document,
+                    None,
+                )
+            })
+            .collect();
+        let actions: Vec<_> = {
+            let app = (!specs.is_empty()).then(|| self.app.lock().ok()).flatten();
+            specs
+                .iter()
+                .zip(&mut requests)
+                .map(|(&spec, request)| {
+                    let enabled = app.as_ref().is_some_and(|app| {
+                        request.expected_revision = Some(app.revision());
+                        app.available(&session, true, request)
+                    });
+                    ActionState { spec, enabled }
+                })
+                .collect()
+        };
+        let selected = self.shell.show_with_actions(
             ui,
             self.title,
             (&status, error),
             self.view.dirty(),
+            &actions,
             |panel, ui| self.view.show(panel, ui),
         );
+        if let Some(index) = selected
+            && let Some(request) = requests.into_iter().nth(index)
+        {
+            let result = if document == self.view.active_document() {
+                self.app
+                    .lock()
+                    .map_err(|_| Error::new("internal", "application unavailable"))
+                    .and_then(|mut app| app.invoke(&session, true, request))
+            } else {
+                Err(Error::new("conflict", "The active document changed"))
+            };
+            self.command_status = Some((
+                time + 5.0,
+                result.map_or_else(|error| (error.message, true), result_feedback),
+            ));
+            ui.ctx().request_repaint();
+        }
         if self.shell.take_save_request() && self.view.request_save() && !self.view.dirty() {
             self.shell.finish_close(ui.ctx());
         }
-        if self.shell.commands_open {
-            self.command_status = self.palette.show(
+        if self.shell.commands_open
+            && let Some(message) = self.palette.show(
                 ui.ctx(),
                 &mut self.shell.commands_open,
                 &self.app,
                 self.view.active_document(),
-            );
+            )
+        {
+            self.command_status = Some((time + 5.0, message));
+            ui.ctx().request_repaint();
         }
         ui.ctx().request_repaint_after(Duration::from_millis(150));
     }
@@ -167,6 +251,21 @@ impl SettingsView {
     }
 }
 impl View for SettingsView {
+    fn actions(&self) -> &'static [ActionSpec] {
+        use eframe::egui::{Key, KeyboardShortcut, Modifiers};
+        const ACTIONS: &[ActionSpec] = &[ActionSpec {
+            command: "workspace.name",
+            label: "Show workspace name",
+            menu: Some("Workspace"),
+            toolbar: true,
+            shortcut: Some(KeyboardShortcut::new(
+                Modifiers::COMMAND.plus(Modifiers::SHIFT),
+                Key::L,
+            )),
+        }];
+        ACTIONS
+    }
+
     fn show(&mut self, panel: Panel, ui: &mut eframe::egui::Ui) {
         let mut app = self.app.lock().expect("settings mutex");
         if let Ok(name) = starter_core::sample::invoke(&mut app, "workspace.name", json!({})) {
@@ -496,5 +595,120 @@ mod inspection_tests {
         } else {
             panic!("missing gallery tree: {response:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod action_tests {
+    use super::*;
+    use eframe::egui::{Key, KeyboardShortcut, Modifiers, Ui};
+    use egui_kittest::{Harness, kittest::Queryable};
+
+    struct TestView;
+
+    impl View for TestView {
+        fn show(&mut self, _panel: Panel, _ui: &mut Ui) {}
+
+        fn status(&self) -> (String, bool) {
+            ("Ready".to_owned(), false)
+        }
+
+        fn actions(&self) -> &'static [ActionSpec] {
+            const ACTIONS: &[ActionSpec] = &[
+                ActionSpec {
+                    command: "test.add",
+                    label: "Add from menu",
+                    menu: Some("Project commands"),
+                    toolbar: false,
+                    shortcut: None,
+                },
+                ActionSpec {
+                    command: "test.add",
+                    label: "Add from toolbar",
+                    menu: None,
+                    toolbar: true,
+                    shortcut: Some(KeyboardShortcut::new(Modifiers::ALT, Key::L)),
+                },
+                ActionSpec {
+                    command: "test.private",
+                    label: "Private action",
+                    menu: None,
+                    toolbar: true,
+                    shortcut: Some(KeyboardShortcut::new(Modifiers::ALT, Key::K)),
+                },
+            ];
+            ACTIONS
+        }
+
+        fn action_parameters(&self, action: &ActionSpec) -> Value {
+            if action.label == "Add from menu" {
+                json!(3)
+            } else {
+                json!(2)
+            }
+        }
+
+        fn active_document(&self) -> Option<u64> {
+            Some(7)
+        }
+    }
+
+    #[test]
+    fn menus_toolbar_and_shortcuts_dispatch_the_public_operation() {
+        let mut engine = Application::new(0, 10);
+        for (id, public) in [("test.add", true), ("test.private", false)] {
+            engine
+                .command(
+                    starter_core::Definition {
+                        id,
+                        description: "Add to the test state",
+                        permission: "write",
+                        public,
+                        available: |_, request| request.document_id.as_deref() == Some("7"),
+                    },
+                    starter_core::Kind::Command,
+                    |state, value: i32, request| {
+                        assert!(request.expected_revision.is_some());
+                        *state += value;
+                        Ok(*state)
+                    },
+                )
+                .unwrap();
+        }
+        let app = Arc::new(Mutex::new(engine));
+        let mut window = Window {
+            app: app.clone(),
+            palette: Default::default(),
+            command_status: None,
+            // A single tab keeps this test focused on actions. The upstream dock splitter
+            // has a role, but egui_dock does not currently give it an accessible name.
+            shell: Shell::new(starter_desktop::Workspace {
+                layout: starter_desktop::Layout::Tabs(vec![Panel::Work], 0),
+                ..Default::default()
+            }),
+            view: TestView,
+            title: "Registered action test",
+        };
+        let mut harness = Harness::new_ui(|ui| window.frame(ui));
+        let state = || *app.lock().unwrap().state();
+
+        harness.get_by_label_contains("Add from toolbar").click();
+        harness.run();
+        assert_eq!(state(), 2);
+        harness.get_by_label("Project commands").click();
+        harness.run();
+        harness.get_by_label("Add from menu").click();
+        harness.run();
+        assert_eq!(state(), 5);
+        harness.key_down_modifiers(Modifiers::ALT, Key::L);
+        harness.run();
+        assert_eq!(state(), 7);
+        harness.key_down_modifiers(Modifiers::ALT, Key::L);
+        harness.run();
+        assert_eq!(state(), 7, "repeated key down must not execute a command");
+        harness.key_up_modifiers(Modifiers::ALT, Key::L);
+        harness.key_combination_modifiers(Modifiers::ALT, &[Key::K]);
+        harness.run();
+        assert_eq!(state(), 7, "private commands stay unavailable");
     }
 }

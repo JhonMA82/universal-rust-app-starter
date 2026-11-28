@@ -1,6 +1,6 @@
 use crate::{
-    Design, DialogChoice, Tokens, Tone, confirmation, dismissible_notice, empty_state, field,
-    icon_button, loading, notice, progress, property_grid, search_field, unit_field,
+    Design, DialogChoice, Icon, Tokens, Tone, button_with_icon, confirmation, dismissible_notice,
+    empty_state, field, loading, notice, progress, property_grid, search_field, unit_field,
 };
 use egui::Ui;
 
@@ -79,7 +79,7 @@ impl Gallery {
             design.preview(ui, appearance);
             egui::Frame::default()
                 .fill(ui.visuals().panel_fill)
-                .inner_margin(egui::Margin::same(8))
+                .inner_margin(egui::Margin::same(appearance.metrics().gap))
                 .show(ui, |ui| {
                     egui::ScrollArea::vertical()
                         .auto_shrink([false, true])
@@ -135,9 +135,9 @@ impl Gallery {
         field(ui, tokens.label("Label", "Etiqueta"), &mut self.text);
         ui.add(egui::Slider::new(&mut self.level, 0..=100).text(tokens.label("Level", "Nivel")));
         ui.horizontal_wrapped(|ui| {
-            if icon_button(
+            if button_with_icon(
                 ui,
-                "↺",
+                Icon::Reset,
                 tokens.label("Reset examples", "Restablecer ejemplos"),
             )
             .clicked()

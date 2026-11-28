@@ -1,15 +1,19 @@
 #![forbid(unsafe_code)]
+mod actions;
 mod components;
 mod design;
 mod gallery;
+mod icons;
 
+pub use actions::{ActionSpec, ActionState};
 pub use components::{
     DialogChoice, Tone, confirmation, dismissible_notice, empty_state, field, icon_button, loading,
     notice, progress, property_grid, search_field, status, unit_field,
 };
-pub use design::{Design, Tokens};
+pub use design::{Design, Metrics, ThemeColors, Tokens};
 pub use egui;
 pub use gallery::Gallery;
+pub use icons::{Icon, button_with_icon};
 
 use egui::{Context, Ui};
 use egui_dock::{DockArea, DockState, Node, NodeIndex, TabViewer, Tree};
@@ -287,8 +291,21 @@ impl Shell {
         title: &str,
         message: (&str, bool),
         dirty: bool,
-        mut show: impl FnMut(Panel, &mut Ui),
+        show: impl FnMut(Panel, &mut Ui),
     ) {
+        self.show_with_actions(ui, title, message, dirty, &[], show);
+    }
+
+    /// Render the shell and return the selected action's index for the host to dispatch.
+    pub fn show_with_actions(
+        &mut self,
+        ui: &mut Ui,
+        title: &str,
+        message: (&str, bool),
+        dirty: bool,
+        actions: &[ActionState],
+        mut show: impl FnMut(Panel, &mut Ui),
+    ) -> Option<usize> {
         let ctx = ui.ctx().clone();
         let tokens = self.workspace.tokens;
         self.design.apply(&ctx, tokens);
@@ -304,16 +321,22 @@ impl Shell {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.confirm_close = true;
         }
+        let commands_blocked = self.confirm_close || self.commands_open;
+        let mut selected = None;
+        actions::menu_bar(ui, actions, &mut selected);
         egui::Panel::top("starter-toolbar").show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.heading(title);
-                self.commands_open |= ui.button(tokens.label("Commands", "Comandos")).clicked();
+                self.commands_open |=
+                    button_with_icon(ui, Icon::Search, tokens.label("Commands", "Comandos"))
+                        .clicked();
                 self.preferences |= ui
                     .button(tokens.label("Preferences", "Preferencias"))
                     .clicked();
                 self.inspector |= ui
                     .button(tokens.label("Inspector window", "Ventana de inspección"))
                     .clicked();
+                actions::toolbar(ui, actions, &mut selected);
                 if !self.panels.is_empty() {
                     ui.menu_button(tokens.label("Panels", "Paneles"), |ui| {
                         let panels = self.panels.clone();
@@ -441,6 +464,15 @@ impl Shell {
                 None => {}
             }
         }
+        if commands_blocked || self.confirm_close || self.commands_open {
+            return None;
+        }
+        selected.or_else(|| {
+            if ctx.text_edit_focused() || egui::Popup::is_any_open(&ctx) {
+                return None;
+            }
+            actions::shortcut(&ctx, actions)
+        })
     }
 }
 struct Viewer<'a, F> {
@@ -570,6 +602,28 @@ mod tests {
         h.get_by_label("Properties").click();
         h.run();
         h.get_by_label("Length");
+    }
+    #[test]
+    fn gallery_icon_named_button_confirms_reset_and_dismisses_feedback() {
+        let mut gallery = Gallery::default();
+        let mut h = Harness::new_ui(|ui| gallery.show(ui, Tokens::default()));
+        h.get_by_label("Show grid").click();
+        h.run();
+        h.get_by_label("Reset examples").click();
+        h.run_steps(3);
+        h.get_by_label("Cancel").click();
+        h.run_steps(3);
+        assert!(h.query_by_label("Preview level").is_some());
+
+        h.get_by_label("Reset examples").click();
+        h.run_steps(3);
+        h.get_by_label("Reset").click();
+        h.run_steps(3);
+        assert!(h.query_by_label("Preview level").is_none());
+        h.get_by_label("Examples reset");
+        h.get_by_label("Dismiss").click();
+        h.run_steps(3);
+        assert!(h.query_by_label("Examples reset").is_none());
     }
     #[cfg(all(feature = "visual-evidence", not(target_arch = "wasm32")))]
     #[test]

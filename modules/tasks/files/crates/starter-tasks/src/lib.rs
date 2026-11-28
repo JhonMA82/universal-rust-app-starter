@@ -69,6 +69,52 @@ impl<T, E> Drop for Job<T, E> {
         self.cancel();
     }
 }
+/// A reusable controller for one foreground job in a native view. The result
+/// is consumed exactly once. Changing revisions discards an obsolete result.
+pub struct TaskSlot<T, E> {
+    pool: Pool,
+    job: Option<Job<T, E>>,
+}
+
+impl<T: Send + 'static, E: Send + 'static> Default for TaskSlot<T, E> {
+    fn default() -> Self {
+        Self {
+            pool: Pool::new(1),
+            job: None,
+        }
+    }
+}
+
+impl<T: Send + 'static, E: Send + 'static> TaskSlot<T, E> {
+    pub fn start(
+        &mut self,
+        revision: u64,
+        run: impl FnOnce(&Control) -> Result<T, E> + Send + 'static,
+    ) -> std::io::Result<()> {
+        if self.job.is_some() {
+            return Err(std::io::Error::other("a task is already active"));
+        }
+        self.job = Some(self.pool.start(revision, run)?);
+        Ok(())
+    }
+
+    pub fn progress(&self) -> Option<u16> {
+        self.job.as_ref().map(Job::progress)
+    }
+
+    pub fn cancel(&self) {
+        if let Some(job) = &self.job {
+            job.cancel();
+        }
+    }
+
+    pub fn poll(&mut self, revision: u64) -> Option<Result<T, Error<E>>> {
+        let result = self.job.as_mut()?.poll(revision)?;
+        self.job = None;
+        Some(result)
+    }
+}
+
 pub struct Pool {
     limit: usize,
     active: Arc<AtomicUsize>,

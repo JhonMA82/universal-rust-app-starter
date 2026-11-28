@@ -1,9 +1,20 @@
-use eframe::egui::Ui;
-use serde_json::json;
-use starter_desktop::{Panel, PanelSpec};
+use eframe::egui::{Key, KeyboardShortcut, Modifiers, Ui};
+use serde_json::{Value, json};
+use starter_desktop::{ActionSpec, Panel, PanelSpec};
 use starter_reference::{Shared, TaskPanel, View, invoke};
 
 use crate::domain::Workspace;
+
+const RENAME_ACTIONS: &[ActionSpec] = &[ActionSpec {
+    command: "workspace.rename",
+    label: "Rename workspace",
+    menu: Some("Workspace"),
+    toolbar: true,
+    shortcut: Some(KeyboardShortcut::new(
+        Modifiers::COMMAND.plus(Modifiers::SHIFT),
+        Key::R,
+    )),
+}];
 
 pub struct WorkspaceView {
     app: Shared<Workspace>,
@@ -34,6 +45,14 @@ impl View for WorkspaceView {
             floating: true,
             initially_open: true,
         }]
+    }
+
+    fn actions(&self) -> &'static [ActionSpec] {
+        RENAME_ACTIONS
+    }
+
+    fn action_parameters(&self, _action: &ActionSpec) -> Value {
+        json!({"name": self.draft})
     }
 
     fn status(&self) -> (String, bool) {
