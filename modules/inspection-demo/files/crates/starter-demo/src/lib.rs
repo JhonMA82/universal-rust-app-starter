@@ -2,52 +2,48 @@
 use eframe::egui;
 use serde_json::json;
 use starter_desktop::Panel;
-use starter_documents::storage::{Document, Recovery};
-use starter_inspection::{InspectionCheck, InspectionReport, format};
+use starter_documents::storage::{Document, Recovery, RecoveryDraft};
+use starter_inspection::{InspectionCheck, InspectionReport, format, recovery};
 use starter_reference::{Shared, View, invoke};
 use std::{
     path::PathBuf,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 
 const AUTOSAVE: Duration = Duration::from_secs(15);
-const UNDO_CAPACITY: usize = 128;
 
 struct Inspector {
     app: Shared<Document<InspectionReport>>,
     draft: InspectionReport,
+    baseline: InspectionReport,
     draft_revision: u64,
+    application_revision: u64,
     path: String,
-    recovery: Recovery,
+    recovery_directory: PathBuf,
+    untitled_key: String,
     last_autosave: Instant,
     status: (String, bool),
 }
 
 impl Inspector {
     fn new(app: Shared<Document<InspectionReport>>) -> Self {
-        let (draft, draft_revision) = {
+        let (draft, draft_revision, application_revision) = {
             let app = app.lock().expect("application mutex");
             (
                 app.state().history().value().clone(),
                 app.state().history().revision(),
+                app.revision(),
             )
         };
         Self {
             app,
+            baseline: draft.clone(),
             draft,
             draft_revision,
+            application_revision,
             path: "inspection.json".into(),
-            recovery: Recovery::new(
-                ".inspection-recovery",
-                format!(
-                    "report-{}-{}",
-                    std::process::id(),
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_nanos()
-                ),
-            ),
+            recovery_directory: ".inspection-recovery".into(),
+            untitled_key: format!("untitled-{}", uuid::Uuid::new_v4().simple()),
             last_autosave: Instant::now(),
             status: ("Ready".into(), false),
         }
@@ -56,17 +52,29 @@ impl Inspector {
     fn sync(&mut self) {
         let app = self.app.lock().expect("application mutex");
         self.draft = app.state().history().value().clone();
+        self.baseline = self.draft.clone();
         self.draft_revision = app.state().history().revision();
+        self.application_revision = app.revision();
+    }
+
+    fn execute(&mut self, id: &str, parameters: serde_json::Value) -> Result<(), String> {
+        invoke(
+            &self.app,
+            id,
+            parameters,
+            None,
+            Some(self.application_revision),
+        )
+        .map_err(|error| error.message)?;
+        self.sync();
+        Ok(())
     }
 
     fn operation(&mut self, id: &str, parameters: serde_json::Value) -> bool {
-        match invoke(&self.app, id, parameters, None, None) {
-            Ok(_) => {
-                self.sync();
-                true
-            }
+        match self.execute(id, parameters) {
+            Ok(()) => true,
             Err(error) => {
-                self.status = (error.message, true);
+                self.status = (error, true);
                 false
             }
         }
@@ -77,37 +85,59 @@ impl Inspector {
         self.operation("inspection.edit", parameters)
     }
 
-    fn undo(&mut self) -> bool {
-        self.operation("inspection.undo", json!({}))
+    fn history(&mut self, id: &str) -> bool {
+        if self.draft != self.baseline {
+            self.status = (
+                "Apply the pending draft before changing history".into(),
+                true,
+            );
+            return false;
+        }
+        self.operation(id, json!({}))
     }
 
-    fn redo(&mut self) -> bool {
-        self.operation("inspection.redo", json!({}))
+    fn save(&mut self) -> Result<(), String> {
+        let draft = (self.draft != self.baseline).then_some(&self.draft);
+        self.execute(
+            "inspection.session.save",
+            json!({"path": self.path, "draft": draft}),
+        )
     }
 
-    fn save(&mut self) -> Result<(), starter_documents::Error> {
-        let path = PathBuf::from(&self.path);
-        let mut app = self.app.lock().expect("application mutex");
-        app.state_mut().save(&path)?;
-        app.state().discard_recovery(&self.recovery)?;
-        drop(app);
-        self.sync();
-        Ok(())
+    fn open(&mut self) -> Result<(), String> {
+        self.require_clean()?;
+        self.execute("inspection.session.open", json!({"path": self.path}))
     }
 
-    fn open(&mut self) -> Result<(), starter_documents::Error> {
-        let path = PathBuf::from(&self.path);
-        let document = Document::open(format(), &path, UNDO_CAPACITY)?;
-        let mut app = self.app.lock().expect("application mutex");
-        *app.state_mut() = document;
-        drop(app);
-        self.sync();
-        Ok(())
+    fn require_clean(&self) -> Result<(), String> {
+        if self.dirty() {
+            Err("Save or recover the current work before switching documents".into())
+        } else {
+            Ok(())
+        }
     }
 
     fn autosave(&mut self) -> bool {
-        let app = self.app.lock().expect("application mutex");
-        match app.state().autosave(&self.recovery) {
+        let outcome = (|| -> Result<_, String> {
+            if self.draft != self.baseline {
+                let parameters = json!({"report": self.draft, "if_revision": self.draft_revision});
+                self.execute("inspection.edit", parameters)?;
+            }
+            let document = {
+                let app = self.app.lock().expect("application mutex");
+                app.state().clone()
+            };
+            let handle = recovery(
+                self.recovery_directory.clone(),
+                document.bound_path().map(PathBuf::from),
+                &self.untitled_key,
+            )
+            .map_err(|error| error.message)?;
+            document
+                .autosave(&handle)
+                .map_err(|error| error.to_string())
+        })();
+        match outcome {
             Ok(Some(report)) => {
                 self.status = (format!("Autosaved {} bytes", report.bytes), false);
                 true
@@ -120,44 +150,64 @@ impl Inspector {
         }
     }
 
-    fn recover(&mut self) -> Result<bool, starter_documents::Error> {
-        let recovered = {
-            let mut app = self.app.lock().expect("application mutex");
-            app.state_mut().recover(&self.recovery)?
-        };
-        if recovered {
-            self.sync();
+    fn recover(&mut self, draft: &RecoveryDraft) -> Result<(), String> {
+        self.require_clean()?;
+        self.execute(
+            "inspection.session.recover",
+            json!({"directory": self.recovery_directory, "path": draft.original_path, "key": draft.recovery.key()}),
+        )?;
+        if let Some(path) = &draft.original_path {
+            self.path = path.to_string_lossy().into_owned();
+        } else {
+            self.untitled_key = draft.recovery.key().into();
         }
-        Ok(recovered)
+        Ok(())
     }
 
-    fn discard_recovery(&mut self) -> Result<(), starter_documents::Error> {
-        let app = self.app.lock().expect("application mutex");
-        app.state().discard_recovery(&self.recovery)
+    fn discard_recovery(&self, handle: &Recovery) -> Result<(), starter_documents::Error> {
+        self.app
+            .lock()
+            .expect("application mutex")
+            .state()
+            .discard_recovery(handle)
     }
 }
 
 impl View for Inspector {
     fn show(&mut self, panel: Panel, ui: &mut egui::Ui) {
+        ui.ctx()
+            .request_repaint_after(AUTOSAVE.saturating_sub(self.last_autosave.elapsed()));
         if panel == Panel::Custom(110) {
             ui.heading("Recovery");
-            ui.label(self.recovery.path().display().to_string());
-            if !self.recovery.exists() {
-                ui.label("No autosaved draft");
-                return;
-            }
-            if ui.button("Recover autosaved draft").clicked() {
-                self.status = match self.recover() {
-                    Ok(true) => ("Recovered autosaved draft".into(), false),
-                    Ok(false) => ("Autosaved draft is not newer".into(), false),
-                    Err(error) => (error.to_string(), true),
-                };
-            }
-            if ui.button("Discard autosaved draft").clicked() {
-                self.status = match self.discard_recovery() {
-                    Ok(()) => ("Discarded autosaved draft".into(), false),
-                    Err(error) => (error.to_string(), true),
-                };
+            match Recovery::discover(&self.recovery_directory, &format()) {
+                Ok(drafts) if drafts.is_empty() => {
+                    ui.label("No autosaved drafts");
+                }
+                Ok(drafts) => {
+                    for draft in drafts {
+                        ui.push_id(draft.recovery.key(), |ui| {
+                            ui.label(draft.original_path.as_deref().map_or_else(
+                                || "Untitled".into(),
+                                |path| path.display().to_string(),
+                            ));
+                            if ui.button("Recover autosaved draft").clicked() {
+                                self.status = match self.recover(&draft) {
+                                    Ok(()) => ("Recovered autosaved draft".into(), false),
+                                    Err(error) => (error, true),
+                                };
+                            }
+                            if ui.button("Discard autosaved draft").clicked() {
+                                self.status = match self.discard_recovery(&draft.recovery) {
+                                    Ok(()) => ("Discarded autosaved draft".into(), false),
+                                    Err(error) => (error.to_string(), true),
+                                };
+                            }
+                        });
+                    }
+                }
+                Err(error) => {
+                    starter_desktop::status(ui, &error.to_string(), true);
+                }
             }
             return;
         }
@@ -202,7 +252,8 @@ impl View for Inspector {
                 }
             });
             let label = ui.label("Note");
-            ui.text_edit_singleline(&mut check.note).labelled_by(label.id);
+            ui.text_edit_singleline(&mut check.note)
+                .labelled_by(label.id);
         }
         if let Some(index) = remove {
             self.draft.checks.remove(index);
@@ -218,16 +269,17 @@ impl View for Inspector {
             if ui.button("Apply changes").clicked() && self.apply() {
                 self.status = ("Applied".into(), false);
             }
-            if ui.button("Undo").clicked() && self.undo() {
+            if ui.button("Undo").clicked() && self.history("inspection.undo") {
                 self.status = ("Undo complete".into(), false);
             }
-            if ui.button("Redo").clicked() && self.redo() {
+            if ui.button("Redo").clicked() && self.history("inspection.redo") {
                 self.status = ("Redo complete".into(), false);
             }
         });
         ui.separator();
         let label = ui.label("File path");
-        ui.text_edit_singleline(&mut self.path).labelled_by(label.id);
+        ui.text_edit_singleline(&mut self.path)
+            .labelled_by(label.id);
         ui.horizontal(|ui| {
             if ui.button("Open").clicked() {
                 self.status = match self.open() {
@@ -250,10 +302,15 @@ impl View for Inspector {
 
     fn dirty(&self) -> bool {
         let app = self.app.lock().expect("application mutex");
-        app.state().history().dirty() || app.state().history().value() != &self.draft
+        app.state().history().dirty() || self.baseline != self.draft
     }
 
     fn tick(&mut self) {
+        if self.draft == self.baseline
+            && self.app.lock().expect("application mutex").revision() != self.application_revision
+        {
+            self.sync();
+        }
         if self.last_autosave.elapsed() < AUTOSAVE {
             return;
         }
@@ -267,19 +324,12 @@ impl View for Inspector {
             kind: "inspection.recovery",
             title: "Recovery",
             floating: true,
-            initially_open: false,
+            initially_open: true,
         }];
         &PANELS
     }
 
     fn request_save(&mut self) -> bool {
-        {
-            let app = self.app.lock().expect("application mutex");
-            if app.state().history().value() != &self.draft {
-                self.status = ("Apply the pending draft before saving".into(), true);
-                return false;
-            }
-        }
         match self.save() {
             Ok(()) => true,
             Err(error) => {
@@ -291,9 +341,11 @@ impl View for Inspector {
 }
 
 pub fn run() -> starter_reference::Result<()> {
-    starter_reference::launch("Inspection Workbench", starter_inspection::application(), |_, app| {
-        Inspector::new(app)
-    })
+    starter_reference::launch(
+        "Inspection Workbench",
+        starter_inspection::application(),
+        |_, app| Inspector::new(app),
+    )
 }
 
 #[cfg(test)]
@@ -308,28 +360,70 @@ mod tests {
     #[test]
     fn autosave_and_recovery_use_the_shared_document_session() {
         let directory = tempfile::tempdir().unwrap();
+        let report = directory.path().join("inspection.json");
         let mut editor = inspector();
-        editor.recovery = Recovery::new(directory.path(), "inspection-test");
-        editor.path = directory
-            .path()
-            .join("inspection.json")
-            .to_string_lossy()
-            .into_owned();
+        editor.recovery_directory = directory.path().join("recovery");
+        editor.path = report.to_string_lossy().into_owned();
         editor.draft.site = "Bridge 7".into();
-        assert!(editor.apply());
         editor.save().unwrap();
-        assert!(!editor.dirty(), "saved documents are clean");
+        assert!(!editor.dirty(), "saving includes pending UI edits");
         editor.draft.site = "Bridge 8".into();
-        assert!(editor.apply());
         assert!(editor.dirty());
         assert!(editor.autosave());
-        assert!(editor.recovery.exists());
-        editor.open().unwrap();
-        assert_eq!(editor.draft.site, "Bridge 7");
-        assert!(editor.recover().unwrap());
-        assert_eq!(editor.draft.site, "Bridge 8");
+        editor.draft.site = "Bridge 9".into();
+        assert!(
+            editor.autosave(),
+            "successive UI autosaves advance the revision"
+        );
+        assert!(
+            editor.open().is_err(),
+            "opening must not discard the pending edit"
+        );
+        let recovery_directory = editor.recovery_directory.clone();
+        drop(editor);
+
+        let mut editor = inspector();
+        editor.recovery_directory = recovery_directory;
+        let mut drafts = Recovery::discover(&editor.recovery_directory, &format()).unwrap();
+        assert_eq!(drafts.len(), 1);
+        let draft = drafts.remove(0);
+        assert_eq!(draft.original_path.as_deref(), Some(report.as_path()));
+        editor.recover(&draft).unwrap();
+        assert_eq!(editor.draft.site, "Bridge 9");
         assert!(editor.dirty(), "recovered drafts stay dirty");
-        editor.discard_recovery().unwrap();
-        assert!(!editor.recovery.exists());
+        editor.save().unwrap();
+        assert!(!editor.dirty());
+        let stored = Document::open(format(), &report, 128).unwrap();
+        assert_eq!(stored.history().value().site, "Bridge 9");
+        assert!(editor.recover(&draft).is_err(), "saved drafts are stale");
+        editor.discard_recovery(&draft.recovery).unwrap();
+        assert!(!draft.recovery.exists());
+    }
+
+    #[test]
+    fn untitled_views_keep_independent_discoverable_drafts() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut first = inspector();
+        let mut second = inspector();
+        first.recovery_directory = directory.path().into();
+        second.recovery_directory = directory.path().into();
+        first.draft.site = "Bridge 11".into();
+        second.draft.site = "Bridge 12".into();
+        assert!(first.autosave());
+        assert!(second.autosave());
+        let drafts = Recovery::discover(directory.path(), &format()).unwrap();
+        assert_eq!(drafts.len(), 2);
+        assert!(drafts.iter().all(|draft| draft.original_path.is_none()));
+        let expected = drafts
+            .iter()
+            .find(|draft| draft.recovery.key() == &first.untitled_key)
+            .unwrap();
+        drop(first);
+        drop(second);
+        let mut reopened = inspector();
+        reopened.recovery_directory = directory.path().into();
+        reopened.recover(expected).unwrap();
+        assert_eq!(reopened.draft.site, "Bridge 11");
+        assert_eq!(reopened.untitled_key, expected.recovery.key());
     }
 }

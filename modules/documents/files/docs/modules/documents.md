@@ -22,9 +22,18 @@ a fresh path. Successful saves mark the snapshot clean. Reopening preserves
 the stored revision and starts a fresh in-memory undo history. Use the
 portable `History<T>` directly when managing storage separately.
 
-`Recovery` names a run-scoped draft file. `Document::autosave` writes only a
-dirty document and never moves the save point; `Document::recover` restores a
-newer draft while keeping the file's saved content as the clean point;
-`Document::discard_recovery` deletes the draft after a successful save. A new
-product supplies its `Format<T>` and these three calls, so opening, saving,
-autosave and recovery stay in one session.
+`Recovery` names a draft file in a product-owned directory. Use a stable
+application key for an untitled draft and `Recovery::for_path` for a saved file.
+The latter derives its key from the canonical parent and the file name. Use
+`Document::bound_path` to get the path from the last successful open or save.
+`Recovery::discover` lists readable drafts for the supplied format across
+restarts, including their revision and original file path when available.
+
+`Document::autosave` writes a dirty document without moving its save point.
+For a bound document, the draft records the path and checksum of its saved base.
+`Document::recover` restores a newer draft against that same base and keeps the
+recovered edits dirty. Recovery reports a conflict if the saved base differs.
+`Document::discard_recovery` removes the selected draft after an explicit
+discard or a confirmed save. Capture the old recovery handle before Save As
+changes the binding. Persistent recovery metadata uses the reserved
+`_starter_recovery` envelope field.

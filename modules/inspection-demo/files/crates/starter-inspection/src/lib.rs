@@ -2,7 +2,11 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use starter_core::{Application, Definition, Error, Kind};
-use starter_documents::{Format, storage::Document};
+use starter_documents::{
+    Format,
+    storage::{Document, Recovery},
+};
+use std::path::PathBuf;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -67,9 +71,7 @@ pub fn format() -> Format<InspectionReport> {
                 return Err(starter_documents::Error::Limit);
             }
             for check in &report.checks {
-                if check.label.trim().is_empty()
-                    || check.label.len() > 96
-                    || check.note.len() > 256
+                if check.label.trim().is_empty() || check.label.len() > 96 || check.note.len() > 256
                 {
                     return Err(starter_documents::Error::Invalid(
                         "checks need a 1–96 byte label and a note of at most 256 bytes".into(),
@@ -95,6 +97,55 @@ fn definition(
     }
 }
 
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct PathRequest {
+    path: PathBuf,
+}
+
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct SaveRequest {
+    path: PathBuf,
+    draft: Option<InspectionReport>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct RecoveryRequest {
+    directory: PathBuf,
+    path: Option<PathBuf>,
+    key: String,
+}
+
+fn private(id: &'static str, description: &'static str) -> Definition<Document<InspectionReport>> {
+    Definition {
+        public: false,
+        ..definition(id, description, "write")
+    }
+}
+
+pub fn recovery(
+    directory: PathBuf,
+    path: Option<PathBuf>,
+    untitled_key: &str,
+) -> Result<Recovery, Error> {
+    match path {
+        Some(path) => Recovery::for_path(directory, &path).map_err(document_error),
+        None if untitled_key == "untitled"
+            || untitled_key.strip_prefix("untitled-").is_some_and(|key| {
+                key.len() == 32 && key.bytes().all(|byte| byte.is_ascii_hexdigit())
+            }) =>
+        {
+            Ok(Recovery::new(directory, untitled_key))
+        }
+        None => Err(Error::new(
+            "draft_identity",
+            "Invalid recovery key for an untitled report",
+        )),
+    }
+}
+
 fn document_error(error: starter_documents::Error) -> Error {
     Error::new("document", error)
 }
@@ -111,7 +162,7 @@ fn snapshot(document: &Document<InspectionReport>) -> Snapshot {
     }
 }
 
-pub fn application() -> Application<Document<InspectionReport>> {
+fn initial_document() -> Document<InspectionReport> {
     let initial = InspectionReport {
         reference: "INS-001".into(),
         site: "Unassigned site".into(),
@@ -121,8 +172,11 @@ pub fn application() -> Application<Document<InspectionReport>> {
             note: String::new(),
         }],
     };
-    let document = Document::new(format(), initial, 128).expect("valid initial report");
-    let mut app = Application::new(document, 128);
+    Document::new(format(), initial, 128).expect("valid initial report")
+}
+
+pub fn application() -> Application<Document<InspectionReport>> {
+    let mut app = Application::new(initial_document(), 128);
     app.query(
         definition("inspection.get", "Read the inspection report", "read"),
         |document, _: Empty, _| Ok(snapshot(document)),
@@ -132,7 +186,10 @@ pub fn application() -> Application<Document<InspectionReport>> {
         definition("inspection.edit", "Replace the inspection report", "write"),
         Kind::Document,
         |document, edit: Edit, _| {
-            if edit.if_revision.is_some_and(|revision| revision != document.history().revision()) {
+            if edit
+                .if_revision
+                .is_some_and(|revision| revision != document.history().revision())
+            {
                 return Err(Error::new("conflict", "stale inspection revision"));
             }
             document.replace(edit.report).map_err(document_error)?;
@@ -159,6 +216,61 @@ pub fn application() -> Application<Document<InspectionReport>> {
         )
         .unwrap();
     }
+    app.command(
+        private("inspection.session.open", "Open a local file"),
+        Kind::Session,
+        |document, input: PathRequest, _| {
+            if document.history().dirty() {
+                return Err(Error::new(
+                    "dirty",
+                    "Save the current report before opening another",
+                ));
+            }
+            *document = Document::open(format(), &input.path, 128).map_err(document_error)?;
+            Ok(())
+        },
+    )
+    .unwrap();
+    app.command(
+        private("inspection.session.save", "Save to a local file"),
+        Kind::Session,
+        |document, input: SaveRequest, _| {
+            if let Some(draft) = input.draft {
+                document.replace(draft).map_err(document_error)?;
+            }
+            document.save(&input.path).map_err(document_error)?;
+            Ok(())
+        },
+    )
+    .unwrap();
+    app.command(
+        private("inspection.session.recover", "Recover a local draft"),
+        Kind::Session,
+        |document, input: RecoveryRequest, _| {
+            if document.history().dirty() {
+                return Err(Error::new(
+                    "dirty",
+                    "Save the current report before recovering another",
+                ));
+            }
+            *document = match &input.path {
+                Some(path) => Document::open(format(), path, 128).map_err(document_error)?,
+                None => initial_document(),
+            };
+            let recovery = recovery(input.directory, input.path, &input.key)?;
+            if recovery.key() != input.key {
+                return Err(Error::new(
+                    "draft_identity",
+                    "Draft key does not match the document",
+                ));
+            }
+            if !document.recover(&recovery).map_err(document_error)? {
+                return Err(Error::new("no_draft", "No newer recovery draft"));
+            }
+            Ok(())
+        },
+    )
+    .unwrap();
     app
 }
 
@@ -187,6 +299,36 @@ mod tests {
     }
 
     #[test]
+    fn file_session_commands_are_private_and_fail_atomically() {
+        let mut app = application();
+        let session = session();
+        let initial = app.state().history().value().clone();
+        let directory = tempfile::tempdir().unwrap();
+        let missing = directory.path().join("missing.json");
+        let input = request("inspection.session.open", json!({"path": missing}));
+        assert_eq!(
+            app.invoke(&session, true, input.clone()).unwrap_err().code,
+            "unknown_operation"
+        );
+        assert!(app.invoke(&session, false, input).is_err());
+        assert_eq!(app.revision(), 0);
+        assert!(app.events().is_empty());
+        assert_eq!(app.state().history().value(), &initial);
+        let path = directory.path().join("report.json");
+        let test = request("inspection.session.save", json!({"path": path}));
+        app.invoke(&session, false, test).unwrap();
+        assert_eq!(app.revision(), 1);
+        let mut stale = request("inspection.session.open", json!({"path": path}));
+        stale.expected_revision = Some(0);
+        assert_eq!(
+            app.invoke(&session, false, stale).unwrap_err().code,
+            "conflict"
+        );
+        assert_eq!(app.revision(), 1);
+        assert_eq!(app.events().len(), 1);
+    }
+
+    #[test]
     fn registered_format_edits_undoes_and_reports_dirty() {
         let mut app = application();
         let report = json!({
@@ -198,18 +340,32 @@ mod tests {
             ]
         });
         let response = app
-            .invoke(&session(), false, request("inspection.edit", json!({"report": report})))
+            .invoke(
+                &session(),
+                false,
+                request("inspection.edit", json!({"report": report})),
+            )
             .unwrap();
         let edited: Snapshot = serde_json::from_value(response.result).unwrap();
         assert_eq!(
-            (edited.reference.as_str(), edited.site.as_str(), edited.passed, edited.total, edited.revision, edited.dirty),
+            (
+                edited.reference.as_str(),
+                edited.site.as_str(),
+                edited.passed,
+                edited.total,
+                edited.revision,
+                edited.dirty
+            ),
             ("INS-9", "Bridge 7", 1, 2, 1, true)
         );
         let undone = app
             .invoke(&session(), false, request("inspection.undo", json!({})))
             .unwrap();
         let undone: Snapshot = serde_json::from_value(undone.result).unwrap();
-        assert_eq!((undone.site.as_str(), undone.revision), ("Unassigned site", 2));
+        assert_eq!(
+            (undone.site.as_str(), undone.revision),
+            ("Unassigned site", 2)
+        );
         let stale = app.invoke(
             &session(),
             false,

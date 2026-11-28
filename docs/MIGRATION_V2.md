@@ -14,3 +14,15 @@ defines its own format, version and migrations. Commit the resulting lockfile
 and run the existing tests. If the composition includes `engineering-tools`,
 run `cargo xtask verify`. Read the generated composition guide for the
 entrypoints in the new project, including any selected automation adapter.
+
+## From the Inspection Workbench candidate
+
+Replace `Application::state_mut` calls with registered operations. Use a private
+session operation for local filesystem effects and supply the observed
+application revision on invocation. Keep runtime-only state in the view.
+Use the typed `Document<T>` for file identity and history.
+
+Use `Recovery::for_path` for saved documents and an application-defined
+key for untitled work. The new discovery API lists validated drafts and their
+original paths. Older PID-keyed drafts lack proof that they belong to a saved
+document. Preserve those files and review their contents manually before import.

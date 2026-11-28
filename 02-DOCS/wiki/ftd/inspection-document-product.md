@@ -19,6 +19,11 @@ Not: los demás criterios del acta (datos e ingeniería desde archivos propios,
 menús y atajos en el shell, recetas compiladas, accesibilidad y matriz CI
 multiplataforma).
 
+> Registro histórico del candidato auditado. La consolidación posterior retiró
+> `state_mut`, añadió recuperación entre procesos y habilitó un workspace
+> combinado para documentos, datos e ingeniería. Las evidencias de este
+> registro corresponden al árbol indicado abajo.
+
 ## Cambios
 - `starter-documents`: `Recovery` nombra un borrador por ejecución;
   `autosave` escribe solo documentos sucios sin mover el punto de guardado;

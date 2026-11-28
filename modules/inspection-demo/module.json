@@ -16,6 +16,7 @@
   "provenance": "Original starter code, see docs/SOURCES.md",
   "documentation": "docs/modules/inspection-demo.md",
   "files": [
+    ".agents/skills/inspection-documents/SKILL.md",
     "crates/starter-inspection/Cargo.toml",
     "crates/starter-inspection/src/lib.rs",
     "crates/starter-demo/Cargo.toml",
@@ -51,6 +52,9 @@
         },
         "serde_json": "1",
         "schemars": "1"
+      },
+      "dev-dependencies": {
+        "tempfile": "3"
       }
     },
     "crates/starter-demo/Cargo.toml": {
@@ -75,7 +79,13 @@
         "starter-inspection": {
           "path": "../starter-inspection"
         },
-        "serde_json": "1"
+        "serde_json": "1",
+        "uuid": {
+          "version": "1",
+          "features": [
+            "v4"
+          ]
+        }
       },
       "dev-dependencies": {
         "tempfile": "3"

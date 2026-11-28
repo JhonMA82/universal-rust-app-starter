@@ -115,13 +115,14 @@ impl<S: 'static> Application<S> {
     pub fn revision(&self) -> u64 {
         self.revision
     }
+    /// Returns the state for inspection. Writes go through registered commands.
+    ///
+    /// ```compile_fail
+    /// let mut app = starter_core::Application::new(0u32, 8);
+    /// *app.state_mut() = 42;
+    /// ```
     pub fn state(&self) -> &S {
         &self.state
-    }
-    /// Session-level access for persistence adapters. Domain edits still go
-    /// through `invoke` so revisions, receipts and events stay consistent.
-    pub fn state_mut(&mut self) -> &mut S {
-        &mut self.state
     }
     pub fn events(&self) -> &VecDeque<Event> {
         &self.events

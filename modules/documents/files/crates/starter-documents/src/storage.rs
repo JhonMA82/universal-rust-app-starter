@@ -1,5 +1,5 @@
 use crate::{Envelope, Error, Format, History};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
@@ -18,10 +18,12 @@ pub struct SaveReport {
     pub directory_synced: bool,
 }
 
-/// Run-scoped location for a dirty draft written by autosave.
+const RECOVERY_METADATA: &str = "_starter_recovery";
+
+/// Location for a dirty draft written by autosave.
 ///
-/// The key is sanitized to one file name. Callers own the directory and the
-/// decision to recover or discard a draft.
+/// Reuse the same directory and key across processes to find a draft after
+/// restart. Use a stable key for an untitled draft or derive one from a file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Recovery {
     directory: PathBuf,
@@ -49,6 +51,53 @@ impl Recovery {
             key,
         }
     }
+
+    /// Derive a stable key from the canonical parent and the document file name.
+    pub fn for_path(directory: impl Into<PathBuf>, path: &Path) -> Result<Self, Error> {
+        let path = StoredPath::new(&absolute(path)?);
+        let hash = Sha256::digest(serde_json::to_vec(&path)?);
+        Ok(Self::new(directory, format!("path-{hash:x}")))
+    }
+
+    /// Find readable drafts of the supplied format in a product-owned directory.
+    /// The list is sorted by key. Foreign and malformed files are skipped.
+    pub fn discover<T: DeserializeOwned>(
+        directory: impl Into<PathBuf>,
+        format: &Format<T>,
+    ) -> Result<Vec<RecoveryDraft>, Error> {
+        let directory = directory.into();
+        let entries = match std::fs::read_dir(&directory) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => return Err(error.into()),
+        };
+        let mut drafts = Vec::new();
+        for entry in entries {
+            let entry = entry?;
+            let name = entry.file_name();
+            let Some(key) = name.to_str().and_then(|name| name.strip_suffix(".json")) else {
+                continue;
+            };
+            let recovery = Self::new(&directory, key);
+            if recovery.key() != key || !entry.file_type()?.is_file() {
+                continue;
+            }
+            let Ok((document, _)) = open(&entry.path(), format) else {
+                continue;
+            };
+            let Ok(base) = recovery_base(&document.extra) else {
+                continue;
+            };
+            drafts.push(RecoveryDraft {
+                recovery,
+                original_path: base.map(|base| base.path.into_path()),
+                revision: document.revision,
+            });
+        }
+        drafts.sort_by(|left, right| left.recovery.key.cmp(&right.recovery.key));
+        Ok(drafts)
+    }
+
     pub fn directory(&self) -> &Path {
         &self.directory
     }
@@ -63,6 +112,80 @@ impl Recovery {
     }
 }
 
+/// A typed draft as discovered on disk.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecoveryDraft {
+    pub recovery: Recovery,
+    pub original_path: Option<PathBuf>,
+    pub revision: u64,
+}
+
+#[derive(Clone)]
+struct Binding {
+    path: PathBuf,
+    checksum: Checksum,
+    revision: u64,
+}
+
+#[derive(Deserialize, Serialize, PartialEq, Eq)]
+struct RecoveryBase {
+    path: StoredPath,
+    checksum: Checksum,
+}
+
+#[derive(Deserialize, Serialize, PartialEq, Eq)]
+#[serde(untagged)]
+enum StoredPath {
+    Text(String),
+    #[cfg(unix)]
+    Unix(Vec<u8>),
+    #[cfg(windows)]
+    Windows(Vec<u16>),
+}
+
+impl StoredPath {
+    fn new(path: &Path) -> Self {
+        if let Some(text) = path.to_str() {
+            return Self::Text(text.into());
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStrExt;
+            Self::Unix(path.as_os_str().as_bytes().to_vec())
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::ffi::OsStrExt;
+            Self::Windows(path.as_os_str().encode_wide().collect())
+        }
+        #[cfg(not(any(unix, windows)))]
+        Self::Text(path.to_string_lossy().into_owned())
+    }
+
+    fn into_path(self) -> PathBuf {
+        match self {
+            Self::Text(text) => text.into(),
+            #[cfg(unix)]
+            Self::Unix(bytes) => {
+                use std::os::unix::ffi::OsStringExt;
+                std::ffi::OsString::from_vec(bytes).into()
+            }
+            #[cfg(windows)]
+            Self::Windows(units) => {
+                use std::os::windows::ffi::OsStringExt;
+                std::ffi::OsString::from_wide(&units).into()
+            }
+        }
+    }
+}
+
+fn recovery_base(extra: &BTreeMap<String, Value>) -> Result<Option<RecoveryBase>, Error> {
+    match extra.get(RECOVERY_METADATA) {
+        Some(value) => Ok(Option::deserialize(value)?),
+        None => Ok(None),
+    }
+}
+
 /// Native, typed document session with history and conflict-aware persistence.
 ///
 /// The application supplies its format and chooses paths. Opening a document
@@ -70,7 +193,7 @@ impl Recovery {
 pub struct Document<T> {
     format: Format<T>,
     history: History<T>,
-    binding: Option<(PathBuf, Checksum)>,
+    binding: Option<Binding>,
     extra: BTreeMap<String, Value>,
 }
 impl<T: Clone> Clone for Document<T> {
@@ -103,13 +226,29 @@ impl<T: Clone + DeserializeOwned + Serialize + PartialEq> Document<T> {
         Ok(Self {
             format,
             history,
-            binding: Some((path, checksum)),
+            binding: Some(Binding {
+                path,
+                checksum,
+                revision: document.revision,
+            }),
             extra: document.extra,
         })
     }
 
     pub fn history(&self) -> &History<T> {
         &self.history
+    }
+
+    /// The file associated with the last successful open or save.
+    pub fn bound_path(&self) -> Option<&Path> {
+        self.binding.as_ref().map(|binding| binding.path.as_path())
+    }
+
+    fn recovery_base(&self) -> Option<RecoveryBase> {
+        self.binding.as_ref().map(|binding| RecoveryBase {
+            path: StoredPath::new(&binding.path),
+            checksum: binding.checksum,
+        })
     }
 
     pub fn replace(&mut self, value: T) -> Result<bool, Error> {
@@ -131,8 +270,8 @@ impl<T: Clone + DeserializeOwned + Serialize + PartialEq> Document<T> {
         let expected = self
             .binding
             .as_ref()
-            .filter(|(bound, _)| bound == &path)
-            .map(|(_, checksum)| *checksum);
+            .filter(|binding| binding.path == path)
+            .map(|binding| binding.checksum);
         let snapshot = self.history.snapshot();
         let content = Envelope {
             format: self.format.id.into(),
@@ -142,7 +281,11 @@ impl<T: Clone + DeserializeOwned + Serialize + PartialEq> Document<T> {
             extra: self.extra.clone(),
         };
         let report = save(&path, &self.format, &content, expected)?;
-        self.binding = Some((path, report.checksum));
+        self.binding = Some(Binding {
+            path,
+            checksum: report.checksum,
+            revision: report.revision,
+        });
         self.history.mark_saved(snapshot);
         Ok(report)
     }
@@ -155,17 +298,44 @@ impl<T: Clone + DeserializeOwned + Serialize + PartialEq> Document<T> {
         }
         std::fs::create_dir_all(recovery.directory())?;
         let path = recovery.path();
-        let expected = match open(&path, &self.format) {
-            Ok((_, checksum)) => Some(checksum),
-            Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => None,
-            Err(error) => return Err(error),
-        };
+        let base = self.recovery_base();
+        let mut extra = self.extra.clone();
+        if extra
+            .insert(RECOVERY_METADATA.into(), serde_json::to_value(&base)?)
+            .is_some()
+        {
+            return Err(Error::Invalid("reserved recovery metadata field".into()));
+        }
         let content = Envelope {
             format: self.format.id.into(),
             version: self.format.version,
             revision: self.history.revision(),
             content: (*self.history.snapshot()).clone(),
-            extra: self.extra.clone(),
+            extra,
+        };
+        let expected = match open(&path, &self.format) {
+            Ok((previous, checksum)) => {
+                let previous_base = recovery_base(&previous.extra)?;
+                let superseded = self.binding.as_ref().is_some_and(|binding| {
+                    previous.revision <= binding.revision
+                        && previous_base
+                            .as_ref()
+                            .is_none_or(|base| base.path == StoredPath::new(&binding.path))
+                });
+                if !superseded && previous_base != base {
+                    return Err(Error::Conflict);
+                }
+                if previous.revision >= content.revision {
+                    return if previous == content {
+                        Ok(None)
+                    } else {
+                        Err(Error::Conflict)
+                    };
+                }
+                Some(checksum)
+            }
+            Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error),
         };
         save(&path, &self.format, &content, expected).map(Some)
     }
@@ -173,14 +343,20 @@ impl<T: Clone + DeserializeOwned + Serialize + PartialEq> Document<T> {
     /// Load a newer recovery draft into the live history. The save point is
     /// preserved, so the recovered content remains dirty.
     pub fn recover(&mut self, recovery: &Recovery) -> Result<bool, Error> {
-        let (content, _) = match open(&recovery.path(), &self.format) {
+        let (mut content, _) = match open(&recovery.path(), &self.format) {
             Ok(document) => document,
-            Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(false);
+            }
             Err(error) => return Err(error),
         };
         if content.revision <= self.history.revision() {
             return Ok(false);
         }
+        if recovery_base(&content.extra)? != self.recovery_base() {
+            return Err(Error::Conflict);
+        }
+        content.extra.remove(RECOVERY_METADATA);
         self.history.restore(content.content, content.revision);
         if !content.extra.is_empty() {
             self.extra = content.extra;
@@ -324,6 +500,17 @@ impl Write for Bounded<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn text_format() -> Format<String> {
+        Format {
+            id: "text",
+            version: 1,
+            max_bytes: 4096,
+            migrate: |_, _| Err(Error::Format),
+            validate: |_| Ok(()),
+        }
+    }
+
     #[test]
     fn typed_document_reopens_and_keeps_verified_save_point_on_conflict() {
         fn format() -> Format<String> {
@@ -408,20 +595,11 @@ mod tests {
 
     #[test]
     fn autosave_and_recovery_preserve_the_save_point() {
-        fn format() -> Format<String> {
-            Format {
-                id: "text",
-                version: 1,
-                max_bytes: 1024,
-                migrate: |_, _| Err(Error::Format),
-                validate: |_| Ok(()),
-            }
-        }
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("document.json");
         let recovery = Recovery::new(directory.path(), "run:1");
         assert_eq!(recovery.key(), "run-1");
-        let mut document = Document::new(format(), "saved".into(), 4).unwrap();
+        let mut document = Document::new(text_format(), "saved".into(), 4).unwrap();
         assert!(document.autosave(&recovery).unwrap().is_none());
         document.replace("draft".into()).unwrap();
         assert_eq!(document.autosave(&recovery).unwrap().unwrap().revision, 1);
@@ -429,14 +607,147 @@ mod tests {
         document.save(&path).unwrap();
         document.replace("newer".into()).unwrap();
         document.autosave(&recovery).unwrap().unwrap();
-        let mut reopened = Document::open(format(), &path, 4).unwrap();
+        let mut reopened = Document::open(text_format(), &path, 4).unwrap();
         assert_eq!(reopened.history().value(), "draft");
         assert!(reopened.recover(&recovery).unwrap());
         assert_eq!(reopened.history().value(), "newer");
         assert!(reopened.history().dirty());
-        assert!(!reopened.recover(&recovery).unwrap(), "same revision is stale");
+        assert!(
+            !reopened.recover(&recovery).unwrap(),
+            "same revision is stale"
+        );
         reopened.discard_recovery(&recovery).unwrap();
         assert!(!recovery.exists());
         assert!(!reopened.recover(&recovery).unwrap());
+    }
+
+    #[test]
+    fn recovery_identity_and_discovery_survive_process_restart() {
+        const TEST_DIR: &str = "STARTER_DOCUMENT_RECOVERY_PROCESS_DIRECTORY";
+        const TEST_PHASE: &str = "STARTER_DOCUMENT_RECOVERY_PROCESS_PHASE";
+
+        if let Some(directory) = std::env::var_os(TEST_DIR).map(PathBuf::from) {
+            let recovery_dir = directory.join("recovery");
+            let path = directory.join("report.json");
+            let other_path = directory.join("second report.json");
+            let format = text_format();
+            let untitled = Recovery::new(&recovery_dir, "untitled");
+            match std::env::var(TEST_PHASE).unwrap().as_str() {
+                "write" => {
+                    for (path, draft) in [(&path, "first draft"), (&other_path, "second draft")] {
+                        let mut document = Document::new(format, "saved".into(), 4).unwrap();
+                        document.save(path).unwrap();
+                        let recovery = Recovery::for_path(&recovery_dir, path).unwrap();
+                        document.replace(draft.into()).unwrap();
+                        assert!(document.autosave(&recovery).unwrap().is_some());
+                    }
+                    let mut document = Document::new(format, "blank".into(), 4).unwrap();
+                    document.replace("untitled draft".into()).unwrap();
+                    assert!(document.autosave(&untitled).unwrap().is_some());
+                    std::fs::write(recovery_dir.join("corrupt.json"), b"broken").unwrap();
+                }
+                "read" => {
+                    let drafts = Recovery::discover(&recovery_dir, &format).unwrap();
+                    assert_eq!(drafts.len(), 3);
+                    assert!(
+                        drafts
+                            .windows(2)
+                            .all(|pair| pair[0].recovery.key() < pair[1].recovery.key())
+                    );
+                    let mut document = Document::open(format, &path, 4).unwrap();
+                    let bound_path = document.bound_path().unwrap();
+                    let from_file =
+                        Recovery::for_path(&recovery_dir, &directory.join(".").join("report.json"))
+                            .unwrap();
+                    let found = drafts
+                        .iter()
+                        .find(|draft| draft.original_path.as_deref() == Some(bound_path))
+                        .unwrap();
+                    assert_eq!(found.recovery, from_file);
+                    assert_eq!(found.revision, 1);
+                    assert_eq!(document.history().value(), "saved");
+
+                    let other = Recovery::for_path(&recovery_dir, &other_path).unwrap();
+                    assert!(matches!(document.recover(&untitled), Err(Error::Conflict)));
+                    assert!(matches!(document.recover(&other), Err(Error::Conflict)));
+                    assert!(document.recover(&found.recovery).unwrap());
+                    assert_eq!(document.history().value(), "first draft");
+                    assert!(document.history().dirty());
+                    assert!(!document.recover(&found.recovery).unwrap());
+                    assert_eq!(open(&path, &format).unwrap().0.content, "saved");
+                    document.discard_recovery(&found.recovery).unwrap();
+                    assert!(!found.recovery.exists());
+                    assert!(other.exists());
+
+                    assert!(drafts.iter().any(|draft| {
+                        draft.original_path.is_none() && draft.recovery == untitled
+                    }));
+                    let mut blank = Document::new(format, "blank".into(), 4).unwrap();
+                    assert!(blank.recover(&untitled).unwrap());
+                    assert_eq!(blank.history().value(), "untitled draft");
+                    assert!(blank.history().dirty());
+                }
+                phase => panic!("unexpected recovery test phase {phase}"),
+            }
+            return;
+        }
+
+        let directory = tempfile::tempdir().unwrap();
+        let executable = std::env::current_exe().unwrap();
+        for phase in ["write", "read"] {
+            let output = std::process::Command::new(&executable)
+                .args([
+                    "--exact",
+                    "storage::tests::recovery_identity_and_discovery_survive_process_restart",
+                    "--nocapture",
+                ])
+                .env(TEST_DIR, directory.path())
+                .env(TEST_PHASE, phase)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success()
+                    && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+                "{phase} subprocess failed: {}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
+            );
+        }
+    }
+
+    #[test]
+    fn recovery_protects_newer_drafts_and_rejects_a_changed_save_base() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("report.json");
+        let recovery_dir = directory.path().join("recovery");
+        let recovery = Recovery::for_path(recovery_dir, &path).unwrap();
+        let format = text_format();
+        let mut original = Document::new(format, "saved".into(), 4).unwrap();
+        original.save(&path).unwrap();
+        let mut competing = Document::open(format, &path, 4).unwrap();
+
+        original.replace("first change".into()).unwrap();
+        original.replace("newest draft".into()).unwrap();
+        assert!(original.autosave(&recovery).unwrap().is_some());
+        assert!(original.autosave(&recovery).unwrap().is_none());
+        competing.replace("older draft".into()).unwrap();
+        assert!(matches!(
+            competing.autosave(&recovery),
+            Err(Error::Conflict)
+        ));
+        competing.replace("other draft".into()).unwrap();
+        assert!(matches!(
+            competing.autosave(&recovery),
+            Err(Error::Conflict)
+        ));
+
+        let (mut saved, checksum) = open(&path, &format).unwrap();
+        saved.content = "changed on disk".into();
+        save(&path, &format, &saved, Some(checksum)).unwrap();
+        let mut opened = Document::open(format, &path, 4).unwrap();
+        assert!(matches!(opened.recover(&recovery), Err(Error::Conflict)));
+        assert_eq!(opened.history().value(), "changed on disk");
+        assert!(!opened.history().dirty());
+        assert!(recovery.exists());
     }
 }
